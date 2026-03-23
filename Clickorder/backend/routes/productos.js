@@ -1,0 +1,70 @@
+const express = require("express")
+const router = express.Router()
+const { sql } = require("../config/db")
+
+router.get("/", async (req, res) => {
+    try {
+        const pool = await sql.connect()
+        const result = await pool.request().query("SELECT * FROM productos")
+        res.json(result.recordset)
+    } catch (error) {
+        res.status(500).json({ mensaje: "Error al obtener productos", error: error.message })
+    }
+})
+
+router.get("/:id", async (req, res) => {
+    try {
+        const pool = await sql.connect()
+        const result = await pool.request()
+            .input("id", sql.Int, req.params.id)
+            .query("SELECT * FROM productos WHERE id = @id")
+        if (result.recordset.length === 0)
+            return res.status(404).json({ mensaje: "Producto no encontrado" })
+        res.json(result.recordset[0])
+    } catch (error) {
+        res.status(500).json({ mensaje: "Error al obtener producto", error: error.message })
+    }
+})
+
+router.post("/", async (req, res) => {
+    const { nombre, precio } = req.body
+    try {
+        const pool = await sql.connect()
+        await pool.request()
+            .input("nombre", sql.VarChar, nombre)
+            .input("precio", sql.Decimal, precio)
+            .query("INSERT INTO productos (nombre, precio) VALUES (@nombre, @precio)")
+        res.status(201).json({ mensaje: "Producto creado correctamente" })
+    } catch (error) {
+        res.status(500).json({ mensaje: "Error al crear producto", error: error.message })
+    }
+})
+
+router.put("/:id", async (req, res) => {
+    const { nombre, precio } = req.body
+    try {
+        const pool = await sql.connect()
+        await pool.request()
+            .input("id", sql.Int, req.params.id)
+            .input("nombre", sql.VarChar, nombre)
+            .input("precio", sql.Decimal, precio)
+            .query("UPDATE productos SET nombre = @nombre, precio = @precio WHERE id = @id")
+        res.json({ mensaje: "Producto actualizado correctamente" })
+    } catch (error) {
+        res.status(500).json({ mensaje: "Error al actualizar producto", error: error.message })
+    }
+})
+
+router.delete("/:id", async (req, res) => {
+    try {
+        const pool = await sql.connect()
+        await pool.request()
+            .input("id", sql.Int, req.params.id)
+            .query("DELETE FROM productos WHERE id = @id")
+        res.json({ mensaje: "Producto eliminado correctamente" })
+    } catch (error) {
+        res.status(500).json({ mensaje: "Error al eliminar producto", error: error.message })
+    }
+})
+
+module.exports = router
