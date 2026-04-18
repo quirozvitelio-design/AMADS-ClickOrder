@@ -23,20 +23,6 @@
       <p class="hero-sub">
         Administra productos, pedidos y usuarios desde un solo panel. Rápido, seguro y eficiente.
       </p>
-      <div class="stats-row">
-        <div class="stat-item">
-          <span class="stat-num">99.9%</span>
-          <span class="stat-label">Uptime</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-num">2 roles</span>
-          <span class="stat-label">Admin & Cliente</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-num">REST</span>
-          <span class="stat-label">API Node.js</span>
-        </div>
-      </div>
     </div>
 
     <div class="right-panel">
@@ -105,7 +91,11 @@ async function login() {
     })
     localStorage.setItem("usuario", JSON.stringify(res.data.usuario))
     success.value = `Bienvenido ${res.data.usuario.nombre}!`
-    setTimeout(() => router.push("/productos"), 1000)
+
+    // Redirigir según rol
+    const rol = res.data.usuario.rol
+    setTimeout(() => router.push(rol === "admin" ? "/productos" : "/catalogo"), 1000)
+
   } catch {
     error.value = "Correo o contraseña incorrectos"
   } finally {

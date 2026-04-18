@@ -6,7 +6,7 @@ user: "sa",
 password: "1234",
 server: "localhost",
 database: "ClickOrder",
-port: 49725,
+port: 1433,
 
 options:{
 encrypt:false,

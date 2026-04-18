@@ -30,30 +30,31 @@
           <h2 class="form-title">{{ formUsuario.editando ? 'Editar usuario' : 'Nuevo usuario' }}</h2>
           <div class="form-grid">
             <div class="field">
-              <label>Nombre</label>
+              <label>Nombre *</label>
               <input v-model="formUsuario.nombre" type="text" placeholder="Nombre completo" />
             </div>
             <div class="field">
-              <label>Correo</label>
+              <label>Correo *</label>
               <input v-model="formUsuario.correo" type="email" placeholder="correo@mail.com" />
             </div>
             <div class="field">
-              <label>Contraseña</label>
-              <input v-model="formUsuario.password" type="password" placeholder="••••••••" />
+              <label>{{ formUsuario.editando ? 'Nueva contraseña (opcional)' : 'Contraseña *' }}</label>
+              <input v-model="formUsuario.password" type="password" :placeholder="formUsuario.editando ? 'Dejar vacío para no cambiar' : '••••••••'" />
             </div>
             <div class="field">
-              <label>Rol</label>
+              <label>Rol *</label>
               <select v-model="formUsuario.rol_id">
                 <option disabled value="">Selecciona rol</option>
                 <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.nombre }}</option>
               </select>
             </div>
           </div>
+          <p v-if="errorUsuario" class="error-msg">{{ errorUsuario }}</p>
           <div class="form-actions">
             <button @click="guardarUsuario" class="btn-primary">
               {{ formUsuario.editando ? 'Actualizar' : 'Crear usuario' }}
             </button>
-            <button @click="formUsuario.visible = false" class="btn-cancel">Cancelar</button>
+            <button @click="cancelarUsuario" class="btn-cancel">Cancelar</button>
           </div>
         </div>
 
@@ -61,7 +62,11 @@
           <table>
             <thead>
               <tr>
-                <th>ID</th><th>Nombre</th><th>Correo</th><th>Rol</th><th>Acciones</th>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Correo</th>
+                <th>Rol</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -100,10 +105,11 @@
           <h2 class="form-title">{{ formRol.editando ? 'Editar rol' : 'Nuevo rol' }}</h2>
           <div class="form-grid">
             <div class="field">
-              <label>Nombre del rol</label>
+              <label>Nombre del rol *</label>
               <input v-model="formRol.nombre" type="text" placeholder="Ej: supervisor" />
             </div>
           </div>
+          <p v-if="errorRol" class="error-msg">{{ errorRol }}</p>
           <div class="form-actions">
             <button @click="guardarRol" class="btn-primary">
               {{ formRol.editando ? 'Actualizar' : 'Crear rol' }}
@@ -116,7 +122,10 @@
           <table>
             <thead>
               <tr>
-                <th>ID</th><th>Nombre</th><th>Usuarios asignados</th><th>Acciones</th>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Usuarios asignados</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -153,9 +162,11 @@
 import { ref, onMounted } from "vue"
 import api from "../api/axios"
 
-const tab      = ref("usuarios")
-const usuarios = ref([])
-const roles    = ref([])
+const tab          = ref("usuarios")
+const usuarios     = ref([])
+const roles        = ref([])
+const errorUsuario = ref("")
+const errorRol     = ref("")
 
 const formUsuario = ref({
   visible: false, editando: null,
@@ -171,21 +182,43 @@ async function cargar() {
   roles.value    = r.data
 }
 
+// --- USUARIOS ---
 function abrirFormUsuario(u = null) {
+  errorUsuario.value = ""
   formUsuario.value = u
-    ? { visible: true, editando: u.id, nombre: u.nombre, correo: u.correo, password: u.password, rol_id: u.rol_id }
+    ? { visible: true, editando: u.id, nombre: u.nombre, correo: u.correo, password: "", rol_id: u.rol_id }
     : { visible: true, editando: null, nombre: "", correo: "", password: "", rol_id: "" }
 }
 
-async function guardarUsuario() {
-  const { editando, nombre, correo, password, rol_id } = formUsuario.value
-  if (editando) {
-    await api.put(`/usuarios/${editando}`, { nombre, correo, password, rol_id })
-  } else {
-    await api.post("/usuarios", { nombre, correo, password, rol_id })
-  }
+function cancelarUsuario() {
   formUsuario.value.visible = false
-  cargar()
+  errorUsuario.value = ""
+}
+
+async function guardarUsuario() {
+  errorUsuario.value = ""
+  const { editando, nombre, correo, password, rol_id } = formUsuario.value
+
+  if (!nombre || !correo || !rol_id) {
+    errorUsuario.value = "Nombre, correo y rol son obligatorios"
+    return
+  }
+  if (!editando && !password) {
+    errorUsuario.value = "La contraseña es obligatoria al crear un usuario"
+    return
+  }
+
+  try {
+    if (editando) {
+      await api.put(`/usuarios/${editando}`, { nombre, correo, password, rol_id })
+    } else {
+      await api.post("/usuarios", { nombre, correo, password, rol_id })
+    }
+    formUsuario.value.visible = false
+    cargar()
+  } catch (e) {
+    errorUsuario.value = e.response?.data?.mensaje || "Error al guardar el usuario"
+  }
 }
 
 async function eliminarUsuario(id) {
@@ -195,25 +228,38 @@ async function eliminarUsuario(id) {
   }
 }
 
+// --- ROLES ---
 function abrirFormRol(r = null) {
+  errorRol.value = ""
   formRol.value = r
     ? { visible: true, editando: r.id, nombre: r.nombre }
     : { visible: true, editando: null, nombre: "" }
 }
 
 async function guardarRol() {
+  errorRol.value = ""
   const { editando, nombre } = formRol.value
-  if (editando) {
-    await api.put(`/roles/${editando}`, { nombre })
-  } else {
-    await api.post("/roles", { nombre })
+
+  if (!nombre) {
+    errorRol.value = "El nombre del rol es obligatorio"
+    return
   }
-  formRol.value.visible = false
-  cargar()
+
+  try {
+    if (editando) {
+      await api.put(`/roles/${editando}`, { nombre })
+    } else {
+      await api.post("/roles", { nombre })
+    }
+    formRol.value.visible = false
+    cargar()
+  } catch (e) {
+    errorRol.value = e.response?.data?.mensaje || "Error al guardar el rol"
+  }
 }
 
 async function eliminarRol(id) {
-  if (confirm("¿Eliminar este rol?")) {
+  if (confirm("¿Eliminar este rol? Los usuarios asignados perderán su rol.")) {
     await api.delete(`/roles/${id}`)
     cargar()
   }
@@ -225,137 +271,60 @@ onMounted(cargar)
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
 
-.page-root {
-  min-height: 100vh;
-  background: var(--bg-base);
-  font-family: 'DM Sans', sans-serif;
-  position: relative;
-}
-.bg-grid {
-  position: fixed; inset: 0; pointer-events: none;
-  background-image:
-    linear-gradient(var(--grid-color) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse 80% 80% at 50% 20%, black 40%, transparent 100%);
-}
-.page-content {
-  position: relative; z-index: 1;
-  max-width: 960px; margin: 0 auto; padding: 40px 24px;
-}
+.page-root { min-height: 100vh; background: var(--bg-base); font-family: 'DM Sans', sans-serif; position: relative; }
+.bg-grid { position: fixed; inset: 0; pointer-events: none; background-image: linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px); background-size: 48px 48px; mask-image: radial-gradient(ellipse 80% 80% at 50% 20%, black 40%, transparent 100%); }
+.page-content { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 40px 24px; }
 .page-header { margin-bottom: 24px; }
-.page-title {
-  font-family: 'Syne', sans-serif; font-size: 32px;
-  font-weight: 800; color: var(--text-primary); margin-bottom: 4px;
-}
+.page-title { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; color: var(--text-primary); margin-bottom: 4px; }
 .page-sub { font-size: 14px; color: var(--text-muted); }
 
-.tabs {
-  display: flex; background: var(--bg-card);
-  border: 1px solid var(--border-soft);
-  border-radius: 12px; padding: 4px;
-  margin-bottom: 24px; width: fit-content;
-}
-.tab-btn {
-  padding: 8px 24px; background: none; border: none; cursor: pointer;
-  font-size: 13px; font-weight: 500; color: var(--text-muted);
-  border-radius: 9px; transition: all 0.2s; font-family: 'DM Sans', sans-serif;
-}
+.tabs { display: flex; background: var(--bg-card); border: 1px solid var(--border-soft); border-radius: 12px; padding: 4px; margin-bottom: 24px; width: fit-content; }
+.tab-btn { padding: 8px 24px; background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-muted); border-radius: 9px; transition: all 0.2s; font-family: 'DM Sans', sans-serif; }
 .tab-btn.active { background: rgba(55,138,221,0.2); color: #378ADD; }
 
-.section-header {
-  display: flex; justify-content: space-between;
-  align-items: center; margin-bottom: 16px;
-}
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .section-count { font-size: 13px; color: var(--text-muted); }
 
-.form-card {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: 16px; padding: 24px; margin-bottom: 20px;
-  animation: fadeUp 0.3s ease both;
-}
-.form-title {
-  font-family: 'Syne', sans-serif; font-size: 16px;
-  font-weight: 600; color: var(--text-primary); margin-bottom: 16px;
-}
-.form-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px; margin-bottom: 16px;
-}
+.form-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; animation: fadeUp 0.3s ease both; }
+.form-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 16px; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
 .form-actions { display: flex; gap: 10px; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
-.field label {
-  font-size: 11px; font-weight: 500; letter-spacing: 0.06em;
-  text-transform: uppercase; color: var(--text-muted);
-}
-.field input, .field select {
-  background: var(--input-bg); border: 1px solid var(--input-border);
-  border-radius: 10px; padding: 10px 14px; font-size: 14px;
-  color: var(--text-primary); font-family: 'DM Sans', sans-serif;
-  outline: none; transition: border-color 0.2s, background 0.2s;
-}
+.field label { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.field input, .field select { background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 10px 14px; font-size: 14px; color: var(--text-primary); font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s, background 0.2s; }
 .field input::placeholder { color: var(--text-muted); }
-.field input:focus, .field select:focus {
-  border-color: rgba(55,138,221,0.5);
-  background: rgba(55,138,221,0.07);
-}
+.field input:focus, .field select:focus { border-color: rgba(55,138,221,0.5); background: rgba(55,138,221,0.07); }
 .field select option { background: var(--bg-base); color: var(--text-primary); }
 
-.btn-primary {
-  background: linear-gradient(135deg, #378ADD, #1D9E75);
-  border: none; border-radius: 10px; padding: 10px 20px;
-  font-size: 13px; font-weight: 600; color: #fff; cursor: pointer;
-  font-family: 'Syne', sans-serif; transition: opacity 0.2s, transform 0.1s;
-}
-.btn-primary:hover  { opacity: 0.9; }
+.error-msg { color: #E24B4A; font-size: 13px; margin-bottom: 12px; background: rgba(226,75,74,0.08); border: 1px solid rgba(226,75,74,0.2); border-radius: 8px; padding: 8px 12px; }
+
+.btn-primary { background: linear-gradient(135deg, #378ADD, #1D9E75); border: none; border-radius: 10px; padding: 10px 20px; font-size: 13px; font-weight: 600; color: #fff; cursor: pointer; font-family: 'Syne', sans-serif; transition: opacity 0.2s, transform 0.1s; }
+.btn-primary:hover { opacity: 0.9; }
 .btn-primary:active { transform: scale(0.98); }
 
-.btn-cancel {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: 10px; padding: 10px 20px; font-size: 13px;
-  color: var(--text-secondary); cursor: pointer;
-  font-family: 'DM Sans', sans-serif; transition: all 0.15s;
-}
+.btn-cancel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 20px; font-size: 13px; color: var(--text-secondary); cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
 .btn-cancel:hover { color: var(--text-primary); background: var(--bg-card-hover); }
 
-.table-card {
-  background: var(--bg-card); border: 1px solid var(--border-soft);
-  border-radius: 16px; overflow: hidden;
-}
+.table-card { background: var(--bg-card); border: 1px solid var(--border-soft); border-radius: 16px; overflow: hidden; }
 table { width: 100%; border-collapse: collapse; }
 thead tr { background: var(--thead-bg); }
-th {
-  padding: 14px 18px; text-align: left; font-size: 11px;
-  font-weight: 500; letter-spacing: 0.06em;
-  text-transform: uppercase; color: var(--text-muted);
-}
+th { padding: 14px 18px; text-align: left; font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
 tbody tr { border-top: 1px solid var(--row-border); transition: background 0.15s; }
 tbody tr:hover { background: var(--row-hover); }
 td { padding: 14px 18px; font-size: 14px; color: var(--text-secondary); }
 .id-col { color: var(--text-muted); font-size: 12px; font-family: monospace; }
-.muted  { color: var(--text-muted); }
-.empty  { text-align: center; color: var(--text-muted); padding: 40px !important; }
+.muted { color: var(--text-muted); }
+.empty { text-align: center; color: var(--text-muted); padding: 40px !important; }
 
-.rol-badge {
-  font-size: 11px; font-weight: 500; padding: 3px 10px;
-  border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em;
-}
+.rol-badge { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em; }
 .rol-badge.admin   { background: rgba(55,138,221,0.15); color: #378ADD; border: 1px solid rgba(55,138,221,0.3); }
 .rol-badge.cliente { background: rgba(29,158,117,0.15); color: #1D9E75; border: 1px solid rgba(29,158,117,0.3); }
 
 .actions { display: flex; gap: 8px; }
-.btn-edit {
-  background: rgba(55,138,221,0.15); border: 1px solid rgba(55,138,221,0.3);
-  border-radius: 6px; padding: 5px 12px; font-size: 12px; color: #378ADD;
-  cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s;
-}
+.btn-edit { background: rgba(55,138,221,0.15); border: 1px solid rgba(55,138,221,0.3); border-radius: 6px; padding: 5px 12px; font-size: 12px; color: #378ADD; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
 .btn-edit:hover { background: rgba(55,138,221,0.25); }
-.btn-delete {
-  background: rgba(226,75,74,0.12); border: 1px solid rgba(226,75,74,0.25);
-  border-radius: 6px; padding: 5px 12px; font-size: 12px; color: #E24B4A;
-  cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s;
-}
+.btn-delete { background: rgba(226,75,74,0.12); border: 1px solid rgba(226,75,74,0.25); border-radius: 6px; padding: 5px 12px; font-size: 12px; color: #E24B4A; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
 .btn-delete:hover { background: rgba(226,75,74,0.22); }
 
 @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
