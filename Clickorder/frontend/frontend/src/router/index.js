@@ -10,7 +10,7 @@ const routes = [
     { path: "/login",     component: LoginView },
     { path: "/productos", component: ProductosView, meta: { requiresAuth: true, soloAdmin: true } },
     { path: "/catalogo",  component: CatalogoView,  meta: { requiresAuth: true } },
-    { path: "/pedidos",   component: PedidosView,   meta: { requiresAuth: true, soloAdmin: true } },
+    { path: "/pedidos", component: PedidosView, meta: { requiresAuth: true, soloDespacho: true } },
     { path: "/usuarios",  component: UsuariosView,  meta: { requiresAuth: true, soloAdmin: true } },
 ]
 
@@ -18,13 +18,10 @@ const router = createRouter({ history: createWebHistory(), routes })
 
 router.beforeEach((to, from, next) => {
     const usuario = JSON.parse(localStorage.getItem("usuario"))
-
-    // Sin sesión → login
     if (to.meta.requiresAuth && !usuario) return next("/login")
-
-    // Es ruta soloAdmin y el usuario es cliente → manda al catálogo
     if (to.meta.soloAdmin && usuario?.rol !== "admin") return next("/catalogo")
-
+    if (to.meta.soloDespacho && !["admin", "logistica"].includes(usuario?.rol))
+        return next("/catalogo")
     next()
 })
 
