@@ -180,15 +180,6 @@
 
         <!-- BANNERS -->
         <transition name="fade">
-          <div v-if="confirmado" class="success-banner">
-            <span>✅</span>
-            <div>
-              <strong>¡Pedido confirmado!</strong>
-              <p>Puedes ver el estado en "Mis pedidos".</p>
-            </div>
-          </div>
-        </transition>
-        <transition name="fade">
           <div v-if="errorMsg" class="error-banner">
             <span>⚠️</span>
             <p>{{ errorMsg }}</p>
@@ -493,26 +484,31 @@ function cerrarModal()        { modalProducto.value = null;    modalCantidad.val
 
 // ── Confirmar pedido (un solo POST con todos los items) ───
 async function confirmarPedido() {
+  if (!metodoPago.value) {
+    errorMsg.value = "Debes seleccionar un método de pago"
+    setTimeout(() => { errorMsg.value = "" }, 3000)
+    return
+  }
   confirmando.value = true
   errorMsg.value    = ""
   try {
-    await api.post("/pedidos/carrito", {
+    const res = await api.post("/pedidos/carrito", {
       usuario_id:  usuario.id,
-      metodo_pago: "",
+      metodo_pago: metodoPago.value,
       items: carrito.value.map(item => ({
         producto_id: item.id,
         cantidad:    item.cantidad
       }))
     })
     carrito.value    = []
+    metodoPago.value = ""
+    localStorage.removeItem("clickorder_carrito")
     verCarrito.value = false
-    confirmado.value = true
     await cargar()
     await cargarMisPedidos()
-    setTimeout(() => confirmado.value = false, 4000)
   } catch (err) {
     errorMsg.value = err.response?.data?.mensaje || "Error al confirmar el pedido"
-    setTimeout(() => errorMsg.value = "", 4000)
+    setTimeout(() => { errorMsg.value = "" }, 4000)
   } finally {
     confirmando.value = false
   }
@@ -646,10 +642,6 @@ onUnmounted(() => {
 .btn-confirmar:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* BANNERS */
-.success-banner { display: flex; align-items: flex-start; gap: 12px; background: rgba(29,158,117,0.12); border: 1px solid rgba(29,158,117,0.3); border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; }
-.success-banner span { font-size: 20px; }
-.success-banner strong { display: block; font-size: 14px; color: #1D9E75; }
-.success-banner p { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 .error-banner { display: flex; align-items: center; gap: 12px; background: rgba(226,75,74,0.1); border: 1px solid rgba(226,75,74,0.25); border-radius: 12px; padding: 12px 20px; margin-bottom: 20px; font-size: 14px; color: #E24B4A; }
 
 /* GRID PRODUCTOS */
