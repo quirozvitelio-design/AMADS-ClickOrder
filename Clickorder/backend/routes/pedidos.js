@@ -7,7 +7,7 @@ const queryBase = `
            pr.nombre AS producto, pr.precio, p.cantidad,
            (pr.precio * p.cantidad) AS total,
            p.estado, p.metodo_pago, p.fecha,
-           p.pedido_grupo
+           p.pedido_grupo, p.fecha_estado_actualizado
     FROM pedidos p
     INNER JOIN usuarios u   ON p.usuario_id  = u.id
     INNER JOIN productos pr ON p.producto_id = pr.id
@@ -76,7 +76,7 @@ router.post("/", async (req, res) => {
             .input("usuario_id",   sql.Int,     usuario_id)
             .input("producto_id",  sql.Int,     producto_id)
             .input("cantidad",     sql.Int,     cantidad)
-            .input("estado",       sql.VarChar, "Pendiente")
+            .input("estado", sql.VarChar, "Recibido")
             .input("metodo_pago",  sql.VarChar, metodo_pago || "")
             .input("pedido_grupo", sql.VarChar, null)
             .query(`INSERT INTO pedidos (usuario_id, producto_id, cantidad, estado, metodo_pago, pedido_grupo)
@@ -101,6 +101,8 @@ router.post("/carrito", async (req, res) => {
     if (!items || items.length === 0)
         return res.status(400).json({ mensaje: "El carrito está vacío" })
 
+    if (!metodo_pago || metodo_pago.trim() === "")
+        return res.status(400).json({ mensaje: "Debes seleccionar un método de pago" })
     const pool = await sql.connect()
     const transaction = new sql.Transaction(pool)
 
@@ -126,15 +128,18 @@ router.post("/carrito", async (req, res) => {
                 throw new Error(`Stock insuficiente para "${nombre}". Disponible: ${stock}`)
 
             // Insertar pedido con el grupo
+            const fechaEst = new Date()
+
             await new sql.Request(transaction)
-                .input("usuario_id",   sql.Int,     usuario_id)
-                .input("producto_id",  sql.Int,     producto_id)
-                .input("cantidad",     sql.Int,     cantidad)
-                .input("estado",       sql.VarChar, "Pendiente")
-                .input("metodo_pago",  sql.VarChar, metodo_pago || "")
-                .input("pedido_grupo", sql.VarChar, grupo)
-                .query(`INSERT INTO pedidos (usuario_id, producto_id, cantidad, estado, metodo_pago, pedido_grupo)
-                        VALUES (@usuario_id, @producto_id, @cantidad, @estado, @metodo_pago, @pedido_grupo)`)
+                .input("usuario_id",   sql.Int,      usuario_id)
+                .input("producto_id",  sql.Int,      producto_id)
+                .input("cantidad",     sql.Int,      cantidad)
+                .input("estado",       sql.VarChar,  "Recibido")
+                .input("metodo_pago",  sql.VarChar,  metodo_pago)
+                .input("pedido_grupo", sql.VarChar,  grupo)
+                .input("fecha_estado", sql.DateTime, fechaEst)
+                .query(`INSERT INTO pedidos (usuario_id, producto_id, cantidad, estado, metodo_pago, pedido_grupo, fecha_estado_actualizado)
+                VALUES (@usuario_id, @producto_id, @cantidad, @estado, @metodo_pago, @pedido_grupo, @fecha_estado)`)
 
             // Descontar stock
             await new sql.Request(transaction)
