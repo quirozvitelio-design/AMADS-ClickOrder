@@ -90,7 +90,11 @@
                 <div
                   v-for="(paso, i) in pasosPedido"
                   :key="paso"
-                  :class="['paso', pasoActivo(grupo[0].estado, i) ? 'activo' : '', pasoCompletado(grupo[0].estado, i) ? 'completado' : '']">
+                  :class="[
+                  'paso', 'paso-' + i,
+                  pasoActivo(grupo[0].estado, i)     ? 'activo'    : '',
+                  pasoCompletado(grupo[0].estado, i) ? 'completado' : ''
+                  ]">
                   <div class="paso-circulo">
                     <span v-if="pasoCompletado(grupo[0].estado, i)">✓</span>
                     <span v-else>{{ i + 1 }}</span>
@@ -316,7 +320,7 @@ const misPedidos      = ref([])
 const cargandoPedidos = ref(false)
 
 const usuario     = JSON.parse(localStorage.getItem("usuario"))
-const pasosPedido = ["Pendiente", "En proceso", "Entregado"]
+const pasosPedido = ["Recibido", "Preparando", "En camino/Listo para retirar", "Entregado"]
 const carritoGuardado = localStorage.getItem("clickorder_carrito")
 const carrito = ref(carritoGuardado ? JSON.parse(carritoGuardado) : [])
 watch(carrito, (nuevo) => {
@@ -331,10 +335,10 @@ const totalCarrito = computed(() =>
 const totalItems = computed(() =>
   carrito.value.reduce((s, i) => s + i.cantidad, 0)
 )
-const pedidosActivos = computed(() => {
-  const grupos = Object.values(pedidosAgrupados.value)
-  return grupos.filter(g => g[0].estado === "Pendiente" || g[0].estado === "En proceso").length
-})
+const pedidosActivos = computed(() =>
+  Object.values(pedidosAgrupados.value)
+    .filter(g => g[0].estado !== "Entregado").length
+)
 const productosFiltrados = computed(() => {
   let lista = productos.value
   if (busqueda.value.trim())
@@ -361,16 +365,18 @@ const pedidosAgrupados = computed(() => {
 
 // ── Helpers de estado ─────────────────────────────────────
 function estadoClase(estado) {
-  if (estado === "Pendiente")  return "estado-pendiente"
-  if (estado === "En proceso") return "estado-proceso"
-  if (estado === "Entregado")  return "estado-entregado"
+  if (estado === "Recibido")                     return "estado-recibido"
+  if (estado === "Preparando")                   return "estado-preparando"
+  if (estado === "En camino/Listo para retirar") return "estado-camino"
+  if (estado === "Entregado")                    return "estado-entregado"
   return ""
 }
 function estadoIcono(estado) {
-  if (estado === "Pendiente")  return "🕐"
-  if (estado === "En proceso") return "🔄"
-  if (estado === "Entregado")  return "✅"
-  return ""
+  if (estado === "Recibido")                     return "📥"
+  if (estado === "Preparando")                   return "🔄"
+  if (estado === "En camino/Listo para retirar") return "🚚"
+  if (estado === "Entregado")                    return "✅"
+  return "🕐"
 }
 function pasoActivo(estado, i) {
   return pasosPedido.indexOf(estado) === i
@@ -379,8 +385,10 @@ function pasoCompletado(estado, i) {
   return i < pasosPedido.indexOf(estado)
 }
 function progresoWidth(estado) {
-  if (estado === "En proceso") return "50%"
-  if (estado === "Entregado")  return "100%"
+  if (estado === "Recibido")                     return "0%"
+  if (estado === "Preparando")                   return "33%"
+  if (estado === "En camino/Listo para retirar") return "66%"
+  if (estado === "Entregado")                    return "100%"
   return "0%"
 }
 function formatFecha(fecha) {
@@ -545,9 +553,10 @@ onUnmounted(() => {
 .grupo-right { display: flex; align-items: center; gap: 14px; }
 .grupo-total { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; color: #1D9E75; }
 .estado-badge { font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 999px; }
-.estado-pendiente { background: rgba(239,159,39,0.15); color: #EF9F27; border: 1px solid rgba(239,159,39,0.3); }
-.estado-proceso   { background: rgba(55,138,221,0.15);  color: #378ADD; border: 1px solid rgba(55,138,221,0.3); }
-.estado-entregado { background: rgba(29,158,117,0.15);  color: #1D9E75; border: 1px solid rgba(29,158,117,0.3); }
+.estado-recibido   { background: rgba(55,138,221,0.15);  color: #378ADD; border: 1px solid rgba(55,138,221,0.3); }
+.estado-preparando { background: rgba(239,159,39,0.15);  color: #EF9F27; border: 1px solid rgba(239,159,39,0.3); }
+.estado-camino     { background: rgba(124,58,237,0.15);  color: #7C3AED; border: 1px solid rgba(124,58,237,0.3); }
+.estado-entregado  { background: rgba(29,158,117,0.15);  color: #1D9E75; border: 1px solid rgba(29,158,117,0.3); }
 
 /* ITEMS DEL GRUPO */
 .grupo-items { background: var(--bg-card-hover); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
@@ -563,10 +572,18 @@ onUnmounted(() => {
 .progreso-wrap { padding: 8px 0 4px; }
 .progreso-bar { position: relative; display: flex; justify-content: space-between; align-items: flex-start; padding: 0 14px; }
 .progreso-linea { position: absolute; top: 14px; left: 28px; right: 28px; height: 3px; background: var(--border); border-radius: 999px; z-index: 0; }
-.progreso-fill { height: 100%; background: linear-gradient(90deg, #378ADD, #1D9E75); border-radius: 999px; transition: width 0.6s ease; }
+.progreso-fill { height: 100%; background: linear-gradient(90deg, #378ADD, #7C3AED, #1D9E75); border-radius: 999px; transition: width 0.6s ease; }
 .paso { display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 1; flex: 1; }
 .paso-circulo { width: 30px; height: 30px; border-radius: 50%; background: var(--bg-card); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--text-muted); transition: all 0.3s; }
 .paso.activo    .paso-circulo { border-color: #378ADD; background: rgba(55,138,221,0.15); color: #378ADD; }
+.paso-0.activo .paso-circulo { border-color: #378ADD; background: rgba(55,138,221,0.15); color: #378ADD; }
+.paso-1.activo .paso-circulo { border-color: #EF9F27; background: rgba(239,159,39,0.15); color: #EF9F27; }
+.paso-2.activo .paso-circulo { border-color: #7C3AED; background: rgba(124,58,237,0.15); color: #7C3AED; }
+.paso-3.activo .paso-circulo { border-color: #1D9E75; background: rgba(29,158,117,0.15); color: #1D9E75; }
+.paso-0.activo .paso-label   { color: #378ADD; font-weight: 700; }
+.paso-1.activo .paso-label   { color: #EF9F27; font-weight: 700; }
+.paso-2.activo .paso-label   { color: #7C3AED; font-weight: 700; }
+.paso-3.activo .paso-label   { color: #1D9E75; font-weight: 700; }
 .paso.completado .paso-circulo { border-color: #1D9E75; background: #1D9E75; color: #fff; }
 .paso-label { font-size: 11px; color: var(--text-muted); text-align: center; white-space: nowrap; font-weight: 500; }
 .paso.activo    .paso-label { color: #378ADD; font-weight: 700; }
