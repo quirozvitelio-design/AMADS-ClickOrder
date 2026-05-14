@@ -299,11 +299,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue"
+import { ref, onMounted, onUnmounted, computed, watch } from "vue"
 import api from "../api/axios"
 
 const productos       = ref([])
-const carrito         = ref([])
 const verCarrito      = ref(false)
 const confirmado      = ref(false)
 const confirmando     = ref(false)
@@ -318,6 +317,12 @@ const cargandoPedidos = ref(false)
 
 const usuario     = JSON.parse(localStorage.getItem("usuario"))
 const pasosPedido = ["Pendiente", "En proceso", "Entregado"]
+const carritoGuardado = localStorage.getItem("clickorder_carrito")
+const carrito = ref(carritoGuardado ? JSON.parse(carritoGuardado) : [])
+watch(carrito, (nuevo) => {
+  localStorage.setItem("clickorder_carrito", JSON.stringify(nuevo))
+}, { deep: true })
+
 
 // ── Computed ──────────────────────────────────────────────
 const totalCarrito = computed(() =>
@@ -453,7 +458,10 @@ function quitarDelCarrito(id) {
   carrito.value = carrito.value.filter(i => i.id !== id)
 }
 function vaciarCarrito() {
-  if (confirm("¿Vaciar el carrito?")) carrito.value = []
+  if (confirm("¿Vaciar el carrito?")) {
+    carrito.value = []
+    localStorage.removeItem("clickorder_carrito")
+  }
 }
 
 // ── Modal ─────────────────────────────────────────────────
@@ -490,6 +498,10 @@ async function confirmarPedido() {
 onMounted(async () => {
   await cargar()
   await cargarMisPedidos()
+})
+onUnmounted(() => {
+  if (typeof pollingInterval !== "undefined" && pollingInterval)
+    clearInterval(pollingInterval)
 })
 </script>
 
