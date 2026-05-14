@@ -159,19 +159,59 @@ router.post("/carrito", async (req, res) => {
 
 // Actualizar estado
 router.patch("/:id/estado", async (req, res) => {
-    const { estado } = req.body
-    const estadosValidos = ["Pendiente", "En proceso", "Entregado"]
-    if (!estadosValidos.includes(estado))
-        return res.status(400).json({ mensaje: "Estado no valido" })
+    const estadoRaw = req.body.estado || ""
+    const estado    = estadoRaw.trim()
+
+    const estadosValidos = [
+        "Recibido",
+        "Preparando",
+        "En camino/Listo para retirar",
+        "Entregado"
+    ]
+
+    // Normalizar: acepta con o sin emoji al inicio
+    const estadoNorm = estadosValidos.find(e =>
+        estado === e || estado.endsWith(e)
+    )
+
+    if (!estadoNorm) {
+        return res.status(400).json({
+            mensaje: "Estado no válido",
+            recibido: estado,
+            validos:  estadosValidos
+        })
+    }
+
     try {
-        const pool = await sql.connect()
+        const pool   = await sql.connect()
+        const actual = await pool.request()
+            .input("id", sql.Int, req.params.id)
+            .query("SELECT estado FROM pedidos WHERE id = @id")
+
+        if (actual.recordset.length === 0)
+            return res.status(404).json({ mensaje: "Pedido no encontrado" })
+
+        const estadoActual = (actual.recordset[0].estado || "").trim()
+        const idxActual    = estadosValidos.indexOf(estadoActual)
+        const idxNuevo     = estadosValidos.indexOf(estadoNorm)
+
+        if (idxNuevo < idxActual) {
+            return res.status(400).json({
+                mensaje: `No puedes retroceder el estado. Estado actual: ${estadoActual}`
+            })
+        }
+
         await pool.request()
-            .input("id",     sql.Int,     req.params.id)
-            .input("estado", sql.VarChar, estado)
-            .query("UPDATE pedidos SET estado = @estado WHERE id = @id")
+            .input("estado", sql.VarChar,  estadoNorm)
+            .input("fecha",  sql.DateTime, new Date())
+            .input("id",     sql.Int,      req.params.id)
+            .query(`UPDATE pedidos
+                    SET estado = @estado, fecha_estado_actualizado = @fecha
+                    WHERE id = @id`)
+
         res.json({ mensaje: "Estado actualizado correctamente" })
-    } catch (error) {
-        res.status(500).json({ mensaje: "Error al actualizar estado", error: error.message })
+    } catch (err) {
+        res.status(500).json({ mensaje: "Error al actualizar estado", error: err.message })
     }
 })
 
