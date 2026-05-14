@@ -154,9 +154,23 @@
                 </div>
               </div>
 
-              <div class="carrito-acciones">
-                <button class="btn-vaciar" @click="vaciarCarrito">🗑 Vaciar</button>
-                <button class="btn-confirmar" @click="confirmarPedido" :disabled="confirmando">
+            <div class="field-pago">
+              <label class="pago-label">💳 Método de pago *</label>
+              <select v-model="metodoPago" class="select-pago">
+                <option value="" disabled>Selecciona método de pago</option>
+                <option value="Efectivo">💵 Efectivo</option>
+                <option value="Transferencia">🏦 Transferencia</option>
+              </select>
+            </div>
+            <p v-if="!metodoPago" class="pago-hint">
+              ⚠️ Selecciona un método de pago para continuar
+            </p>
+            <div class="carrito-acciones">
+              <button class="btn-vaciar" @click="vaciarCarrito">🗑 Vaciar</button>
+                <button
+                  class="btn-confirmar"
+                  @click="confirmarPedido"
+                  :disabled="confirmando || !metodoPago">
                   {{ confirmando ? 'Procesando...' : 'Confirmar pedido →' }}
                 </button>
               </div>
@@ -318,6 +332,7 @@ const modalCantidad   = ref(1)
 const vistaActiva     = ref("catalogo")
 const misPedidos      = ref([])
 const cargandoPedidos = ref(false)
+const metodoPago = ref("")
 
 const usuario     = JSON.parse(localStorage.getItem("usuario"))
 const pasosPedido = ["Recibido", "Preparando", "En camino/Listo para retirar", "Entregado"]
@@ -628,6 +643,7 @@ onUnmounted(() => {
 .btn-vaciar { flex: 1; background: rgba(226,75,74,0.1); border: 1px solid rgba(226,75,74,0.2); border-radius: 10px; padding: 11px; font-size: 13px; color: #E24B4A; cursor: pointer; font-family: 'DM Sans', sans-serif; }
 .btn-confirmar { flex: 2; background: linear-gradient(135deg, #378ADD, #1D9E75); border: none; border-radius: 10px; padding: 11px; font-size: 13px; font-weight: 600; color: #fff; cursor: pointer; font-family: 'Syne', sans-serif; }
 .btn-confirmar:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-confirmar:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* BANNERS */
 .success-banner { display: flex; align-items: flex-start; gap: 12px; background: rgba(29,158,117,0.12); border: 1px solid rgba(29,158,117,0.3); border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; }
@@ -711,4 +727,10 @@ onUnmounted(() => {
   .grupo-header { flex-direction: column; gap: 12px; }
   .grupo-right { justify-content: space-between; width: 100%; }
 }
+
+.field-pago  { margin: 16px 0 8px; }
+.pago-label  { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; font-weight: 600; }
+.select-pago { width: 100%; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 10px 14px; font-size: 14px; color: var(--text-primary); font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s; cursor: pointer; }
+.select-pago:focus { border-color: rgba(55,138,221,0.5); }
+.pago-hint   { font-size: 12px; color: #EF9F27; margin-top: 6px; text-align: center; }
 </style>
