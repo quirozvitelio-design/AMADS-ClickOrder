@@ -23,6 +23,48 @@
         </div>
       </div>
 
+      <div v-if="vistaActiva === 'resumen' && ordenConfirmada" class="resumen-orden">
+  <div class="resumen-header">
+    <span class="resumen-check">✅</span>
+    <h2 class="resumen-titulo">¡Pedido confirmado!</h2>
+    <p class="resumen-codigo">Orden: <strong>{{ ordenConfirmada.grupo }}</strong></p>
+    <p class="resumen-fecha-txt">{{ ordenConfirmada.fecha }}</p>
+  </div>
+  <div class="resumen-items">
+    <div v-for="item in ordenConfirmada.items" :key="item.id" class="resumen-item">
+      <div class="ri-img">
+        <img v-if="item.imagen" :src="item.imagen" :alt="item.nombre"
+          class="ri-foto" @error="item.imagen = null" />
+        <span v-else>📦</span>
+      </div>
+      <div class="ri-info">
+        <span class="ri-nombre">{{ item.nombre }}</span>
+        <span class="ri-detalle">{{ item.cantidad }} × ${{ item.precio }}</span>
+      </div>
+      <span class="ri-sub">${{ (item.precio * item.cantidad).toFixed(2) }}</span>
+    </div>
+  </div>
+  <div class="resumen-footer">
+    <div class="rf-row">
+      <span>Método de pago</span>
+      <strong>{{ ordenConfirmada.metodoPago }}</strong>
+    </div>
+    <div class="rf-row total">
+      <span>Total pagado</span>
+      <strong class="rf-total">${{ ordenConfirmada.total }}</strong>
+    </div>
+  </div>
+  <div class="resumen-acciones">
+    <button class="btn-primary"
+      @click="vistaActiva = 'pedidos'; cargarMisPedidos()">
+      📋 Ver estado del pedido
+    </button>
+    <button class="btn-secondary" @click="vistaActiva = 'catalogo'">
+      🛒 Seguir comprando
+    </button>
+  </div>
+</div>
+
       <!-- ===== VISTA: MIS PEDIDOS ===== -->
       <div v-if="vistaActiva === 'pedidos'">
         <div class="section-header">
@@ -324,6 +366,7 @@ const vistaActiva     = ref("catalogo")
 const misPedidos      = ref([])
 const cargandoPedidos = ref(false)
 const metodoPago = ref("")
+const ordenConfirmada = ref(null)
 
 const usuario     = JSON.parse(localStorage.getItem("usuario"))
 const pasosPedido = ["Recibido", "Preparando", "En camino/Listo para retirar", "Entregado"]
@@ -500,10 +543,25 @@ async function confirmarPedido() {
         cantidad:    item.cantidad
       }))
     })
-    carrito.value    = []
-    metodoPago.value = ""
+
+    // HU-16: guardar resumen antes de limpiar el carrito
+    ordenConfirmada.value = {
+      grupo:      res.data?.grupo || `ORD-${Date.now()}`,
+      fecha:      new Date().toLocaleString("es-SV", {
+        day: "2-digit", month: "short", year: "numeric",
+        hour: "2-digit", minute: "2-digit"
+      }),
+      items:      [...carrito.value],
+      total:      totalCarrito.value,
+      metodoPago: metodoPago.value
+    }
+
+    carrito.value     = []
+    metodoPago.value  = ""
     localStorage.removeItem("clickorder_carrito")
-    verCarrito.value = false
+    verCarrito.value  = false
+    vistaActiva.value = "resumen"   // redirige a pantalla de resumen
+
     await cargar()
     await cargarMisPedidos()
   } catch (err) {
@@ -725,4 +783,28 @@ onUnmounted(() => {
 .select-pago { width: 100%; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 10px 14px; font-size: 14px; color: var(--text-primary); font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s; cursor: pointer; }
 .select-pago:focus { border-color: rgba(55,138,221,0.5); }
 .pago-hint   { font-size: 12px; color: #EF9F27; margin-top: 6px; text-align: center; }
+
+/* RESUMEN DE ORDEN */
+.resumen-orden   { background: var(--bg-card); border: 1px solid rgba(29,158,117,0.3); border-radius: 20px; padding: 36px; max-width: 540px; margin: 0 auto 32px; }
+.resumen-header  { text-align: center; margin-bottom: 28px; }
+.resumen-check   { font-size: 52px; display: block; margin-bottom: 12px; }
+.resumen-titulo  { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; color: var(--text-primary); margin-bottom: 8px; }
+.resumen-codigo  { font-size: 13px; color: var(--text-muted); margin-bottom: 4px; }
+.resumen-fecha-txt { font-size: 12px; color: var(--text-muted); }
+.resumen-items   { background: var(--bg-card-hover); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+.resumen-item    { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--row-border); }
+.resumen-item:last-child { border-bottom: none; }
+.ri-img    { width: 36px; height: 36px; border-radius: 6px; background: var(--bg-card); display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; font-size: 20px; }
+.ri-foto   { width: 100%; height: 100%; object-fit: contain; padding: 2px; }
+.ri-info   { flex: 1; }
+.ri-nombre { display: block; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.ri-detalle{ font-size: 12px; color: var(--text-muted); }
+.ri-sub    { font-size: 14px; font-weight: 700; color: #1D9E75; white-space: nowrap; }
+.resumen-footer { margin-bottom: 24px; }
+.rf-row    { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--text-secondary); border-bottom: 1px solid var(--row-border); }
+.rf-row.total { font-size: 16px; font-weight: 700; color: var(--text-primary); border-bottom: none; padding-top: 12px; }
+.rf-total  { font-family: 'Syne', sans-serif; font-size: 24px; color: #1D9E75; }
+.resumen-acciones { display: flex; gap: 12px; }
+.btn-secondary { flex: 1; background: var(--bg-card-hover); border: 1px solid var(--border); border-radius: 10px; padding: 11px; font-size: 13px; color: var(--text-secondary); cursor: pointer; font-family: 'DM Sans', sans-serif; }
+.btn-secondary:hover { color: var(--text-primary); }
 </style>
