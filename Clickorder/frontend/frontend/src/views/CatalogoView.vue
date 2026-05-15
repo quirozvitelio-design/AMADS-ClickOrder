@@ -174,7 +174,15 @@
             </div>
             <div v-else>
               <div v-for="item in carrito" :key="item.id" class="carrito-item">
-                <div class="carrito-emoji">📦</div>
+                <div class="carrito-img">
+                  <img
+                    v-if="item.imagen"
+                    :src="item.imagen"
+                    :alt="item.nombre"
+                    class="carrito-foto"
+                    @error="item.imagen = null" />
+                  <span v-else class="carrito-emoji">📦</span>
+                </div>
                 <div class="carrito-info">
                   <span class="carrito-nombre">{{ item.nombre }}</span>
                   <span class="carrito-precio-unit">${{ item.precio }} c/u</span>
@@ -261,7 +269,13 @@
             :class="{ agotado: p.stock === 0 }">
 
             <div class="producto-img" @click="p.stock > 0 && abrirModal(p)">
-              <span class="producto-emoji">📦</span>
+              <img
+                v-if="p.imagen"
+                :src="p.imagen"
+                :alt="p.nombre"
+                class="producto-foto"
+                @error="p.imagen = null" />
+              <span v-else class="producto-emoji">📦</span>
               <div v-if="p.stock === 0" class="agotado-overlay">AGOTADO</div>
               <div v-else class="hover-ver">Ver detalle</div>
             </div>
@@ -303,7 +317,13 @@
         <div class="modal-card">
           <button class="modal-close" @click="cerrarModal">✕</button>
           <div class="modal-img">
-            <span class="modal-emoji">📦</span>
+            <img
+              v-if="modalProducto.imagen"
+              :src="modalProducto.imagen"
+              :alt="modalProducto.nombre"
+              class="modal-foto"
+              @error="modalProducto.imagen = null" />
+            <span v-else class="modal-emoji">📦</span>
             <span :class="['modal-stock-badge', modalProducto.stock > 0 ? 'ok' : 'agotado']">
               {{ modalProducto.stock > 0 ? modalProducto.stock + ' disponibles' : 'Agotado' }}
             </span>
@@ -843,4 +863,12 @@ onUnmounted(() => {
 .toast-notif:hover { transform: translateY(-2px); }
 .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
 .toast-enter-from,   .toast-leave-to     { opacity: 0; transform: translateY(20px); }
+/* IMÁGENES EN CATÁLOGO */
+.producto-img  { height: 160px; padding: 0; }
+.producto-foto { width: 100%; height: 100%; object-fit: contain; padding: 12px; transition: transform 0.2s; }
+.producto-img:hover .producto-foto { transform: scale(1.05); }
+.modal-img     { height: 200px; padding: 0; }
+.modal-foto    { width: 100%; height: 100%; object-fit: contain; padding: 16px; }
+.carrito-img   { width: 40px; height: 40px; border-radius: 8px; background: var(--bg-card-hover); display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
+.carrito-foto  { width: 100%; height: 100%; object-fit: contain; padding: 2px; }
 </style>
