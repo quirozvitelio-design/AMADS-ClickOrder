@@ -23,6 +23,13 @@
         </div>
       </div>
 
+      <transition name="toast">
+          <div v-if="mostrarToast" class="toast-notif"
+            @click="vistaActiva = 'pedidos'; cargarMisPedidos()">
+            🔔 {{ toastMensaje }}
+        </div>
+      </transition>
+
       <div v-if="vistaActiva === 'resumen' && ordenConfirmada" class="resumen-orden">
   <div class="resumen-header">
     <span class="resumen-check">✅</span>
@@ -367,6 +374,10 @@ const misPedidos      = ref([])
 const cargandoPedidos = ref(false)
 const metodoPago = ref("")
 const ordenConfirmada = ref(null)
+const mostrarToast      = ref(false)
+const toastMensaje      = ref("")
+const estadosAnteriores = ref({})
+let   pollingInterval   = null
 
 const usuario     = JSON.parse(localStorage.getItem("usuario"))
 const pasosPedido = ["Recibido", "Preparando", "En camino/Listo para retirar", "Entregado"]
@@ -572,13 +583,33 @@ async function confirmarPedido() {
   }
 }
 
+async function iniciarPolling() {
+  misPedidos.value.forEach(p => { estadosAnteriores.value[p.id] = p.estado })
+  pollingInterval = setInterval(async () => {
+    try {
+      const res = await api.get(`/pedidos/usuario/${usuario.id}`)
+      res.data.forEach(p => {
+        const anterior = estadosAnteriores.value[p.id]
+        if (anterior && anterior !== p.estado) {
+          toastMensaje.value = `Tu pedido de "${p.producto}" cambió a: ${p.estado} ${estadoIcono(p.estado)}`
+          mostrarToast.value = true
+          setTimeout(() => { mostrarToast.value = false }, 4000)
+        }
+        estadosAnteriores.value[p.id] = p.estado
+      })
+      misPedidos.value = res.data
+    } catch { /* silencioso */ }
+  }, 30000)
+}
+
 onMounted(async () => {
   await cargar()
   await cargarMisPedidos()
+  iniciarPolling()
 })
+
 onUnmounted(() => {
-  if (typeof pollingInterval !== "undefined" && pollingInterval)
-    clearInterval(pollingInterval)
+  if (pollingInterval) clearInterval(pollingInterval)
 })
 </script>
 
@@ -807,4 +838,9 @@ onUnmounted(() => {
 .resumen-acciones { display: flex; gap: 12px; }
 .btn-secondary { flex: 1; background: var(--bg-card-hover); border: 1px solid var(--border); border-radius: 10px; padding: 11px; font-size: 13px; color: var(--text-secondary); cursor: pointer; font-family: 'DM Sans', sans-serif; }
 .btn-secondary:hover { color: var(--text-primary); }
+/* TOAST HU-17 */
+.toast-notif { position: fixed; bottom: 28px; right: 28px; background: var(--bg-card); border: 1px solid rgba(55,138,221,0.4); border-radius: 14px; padding: 14px 20px; font-size: 14px; color: var(--text-primary); z-index: 999; box-shadow: 0 8px 32px rgba(0,0,0,0.2); max-width: 340px; cursor: pointer; transition: transform 0.2s; }
+.toast-notif:hover { transform: translateY(-2px); }
+.toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
+.toast-enter-from,   .toast-leave-to     { opacity: 0; transform: translateY(20px); }
 </style>
