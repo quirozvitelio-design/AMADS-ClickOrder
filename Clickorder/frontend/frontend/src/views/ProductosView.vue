@@ -38,6 +38,38 @@
             {{ editando ? 'Actualizar' : 'Guardar' }}
           </button>
         </div>
+        <div class="form-row" style="margin-top:12px">
+  <div class="field" style="flex:1">
+    <label>
+      URL de imagen
+      <span class="label-opt">(opcional)</span>
+    </label>
+    <div class="img-input-wrap">
+      <input
+        v-model="form.imagen"
+        type="text"
+        placeholder="https://ejemplo.com/imagen.jpg" />
+      <button
+        v-if="form.imagen"
+        type="button"
+        @click="form.imagen = ''"
+        class="btn-clear-img">✕</button>
+    </div>
+    <p class="field-hint">
+      Clic derecho en Google Imágenes → Copiar dirección de imagen
+    </p>
+  </div>
+  <div class="img-preview-wrap">
+    <div class="img-preview" :class="{ 'img-placeholder': !form.imagen || !imagenValida }">
+      <img
+        v-if="form.imagen && imagenValida"
+        :src="form.imagen"
+        alt="Preview" />
+      <span v-else style="font-size:28px">📦</span>
+      <span class="preview-label">Preview</span>
+    </div>
+  </div>
+</div>
         <p v-if="error" class="error-msg">{{ error }}</p>
       </div>
 
@@ -50,6 +82,7 @@
               <th>Descripción</th>
               <th>Precio</th>
               <th>Stock</th>
+              <th>Imagen</th>
               <th v-if="esAdmin">Acciones</th>
             </tr>
           </thead>
@@ -67,6 +100,16 @@
                   {{ p.stock > 0 ? p.stock + ' uds' : 'Agotado' }}
                 </span>
               </td>
+              <td class="img-col">
+                <div class="tabla-img">
+                  <img
+                  v-if="p.imagen"
+                  :src="p.imagen"
+                  :alt="p.nombre"
+                  @error="$event.target.style.display = 'none'" />
+                  <span v-else class="tabla-emoji">📦</span>
+                </div>
+              </td>
               <td v-if="esAdmin">
                 <div class="actions">
                   <button @click="editar(p)" class="btn-edit">Editar</button>
@@ -82,14 +125,23 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue"
+import { ref, onMounted, computed, watch } from "vue"
 import api from "../api/axios"
 
 const productos   = ref([])
-const form        = ref({ nombre: "", descripcion: "", precio: "", stock: 0 })
+const form = ref({ nombre: "", descripcion: "", precio: "", stock: 0, imagen: "" })
 const editando    = ref(null)
 const mostrarForm = ref(false)
 const error       = ref("")
+const imagenValida = ref(false)
+
+watch(() => form.value.imagen, (nueva) => {
+  if (!nueva) { imagenValida.value = false; return }
+  const img   = new Image()
+  img.onload  = () => { imagenValida.value = true }
+  img.onerror = () => { imagenValida.value = false }
+  img.src = nueva
+})
 
 const usuario = JSON.parse(localStorage.getItem("usuario"))
 const esAdmin = computed(() => usuario?.rol === "admin")
@@ -111,14 +163,15 @@ async function guardar() {
       nombre:      form.value.nombre,
       descripcion: form.value.descripcion || "",
       precio:      parseFloat(form.value.precio),
-      stock:       parseInt(form.value.stock) || 0
+      stock:       parseInt(form.value.stock) || 0,
+      imagen:      form.value.imagen || null
     }
     if (editando.value) {
       await api.put(`/productos/${editando.value}`, payload)
     } else {
       await api.post("/productos", payload)
     }
-    form.value        = { nombre: "", descripcion: "", precio: "", stock: 0 }
+    form.value        = { nombre: "", descripcion: "", precio: "", stock: 0, imagen: "" }
     editando.value    = null
     mostrarForm.value = false
     cargar()
@@ -131,8 +184,9 @@ function editar(p) {
   form.value = {
     nombre:      p.nombre,
     descripcion: p.descripcion || "",
-    precio:      parseFloat(p.precio),   // ← fix clave
-    stock:       parseInt(p.stock) || 0
+    precio:      parseFloat(p.precio),
+    stock:       parseInt(p.stock) || 0,
+    imagen:      p.imagen || ""
   }
   editando.value    = p.id
   mostrarForm.value = true
@@ -189,4 +243,21 @@ td { padding: 14px 18px; font-size: 14px; color: var(--text-secondary); }
 .btn-delete { background: rgba(226,75,74,0.12); border: 1px solid rgba(226,75,74,0.25); border-radius: 6px; padding: 5px 12px; font-size: 12px; color: #E24B4A; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
 .btn-delete:hover { background: rgba(226,75,74,0.22); }
 @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+/* CAMPO IMAGEN */
+.label-opt       { font-size: 10px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--text-muted); margin-left: 4px; }
+.img-input-wrap  { position: relative; display: flex; align-items: center; }
+.img-input-wrap input { width: 100%; padding-right: 36px; }
+.btn-clear-img   { position: absolute; right: 10px; background: rgba(226,75,74,0.15); border: none; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #E24B4A; cursor: pointer; }
+.field-hint      { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+.img-preview-wrap{ display: flex; align-items: flex-start; padding-top: 20px; }
+.img-preview     { width: 90px; height: 90px; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg-card-hover); flex-shrink: 0; }
+.img-preview img { width: 100%; height: 72px; object-fit: contain; padding: 4px; }
+.img-placeholder { gap: 4px; }
+.preview-label   { font-size: 9px; color: var(--text-muted); text-align: center; }
+
+/* THUMBNAIL EN TABLA */
+.img-col   { width: 60px; }
+.tabla-img { width: 48px; height: 48px; border-radius: 8px; overflow: hidden; background: var(--bg-card-hover); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; }
+.tabla-img img { width: 100%; height: 100%; object-fit: contain; padding: 3px; }
+.tabla-emoji   { font-size: 22px; }
 </style>
