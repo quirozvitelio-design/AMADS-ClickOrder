@@ -6,10 +6,14 @@
         <span>ClickOrder</span>
       </div>
       <div class="nav-links">
+        <router-link v-if="usuario.rol === 'admin'" to="/dashboard" class="nav-link">Dashboard</router-link>
         <router-link v-if="usuario.rol === 'admin'" to="/productos" class="nav-link">Productos</router-link>
         <router-link v-if="usuario.rol === 'cliente'" to="/catalogo" class="nav-link">Catálogo</router-link>
         <router-link v-if="usuario.rol === 'admin' || usuario.rol === 'logistica'" to="/pedidos"   class="nav-link">Pedidos</router-link>
         <router-link v-if="usuario.rol === 'admin'" to="/usuarios"  class="nav-link">Usuarios</router-link>
+        <router-link v-if="usuario.rol === 'admin'" to="/configuracion" class="nav-link">Config</router-link>
+        <router-link v-if="usuario.rol === 'admin'" to="/reportes" class="nav-link">Reportes</router-link>
+
         <div class="nav-divider"></div>
         <span class="nav-user">{{ usuario.nombre }} · {{ usuario.rol }}</span>
 
