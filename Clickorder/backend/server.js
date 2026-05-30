@@ -13,5 +13,7 @@ app.use("/api/productos", require("./routes/productos"))
 app.use("/api/pedidos",   require("./routes/pedidos"))
 app.use("/api/usuarios",  require("./routes/usuarios"))
 app.use("/api/roles",     require("./routes/roles"))
+app.use("/api/configuracion", require("./routes/configuracion"))
+app.use("/api/facturas",     require("./routes/facturas"))
 
 app.listen(3000, () => console.log("Servidor en puerto 3000"))
