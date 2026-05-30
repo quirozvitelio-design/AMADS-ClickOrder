@@ -7,6 +7,7 @@ import CatalogoView  from "../views/CatalogoView.vue"
 import FacturasView  from "../views/FacturasView.vue"
 import ConfiguracionView from "../views/ConfiguracionView.vue"
 import ReportesView from "../views/ReportesView.vue"
+import DashboardView from "../views/DashboardView.vue"
 
 const routes = [
     { path: "/",          redirect: "/login" },
@@ -18,6 +19,7 @@ const routes = [
     { path: "/facturas",  component: FacturasView,  meta: { requiresAuth: true, soloAdmin: true } },
     { path: "/reportes", component: ReportesView, meta: { requiresAuth: true, soloAdmin: true } },
     { path: "/configuracion", component: ConfiguracionView, meta: { requiresAuth: true, soloAdmin: true } },
+    { path: "/dashboard", component: DashboardView, meta: { requiresAuth: true, soloAdmin: true } },
 ]
 
 const router = createRouter({ history: createWebHistory(), routes })

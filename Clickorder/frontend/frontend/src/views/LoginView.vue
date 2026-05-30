@@ -94,7 +94,11 @@ async function login() {
 
     // Redirigir según rol
     const rol = res.data.usuario.rol
-    setTimeout(() => router.push(rol === "admin" ? "/productos" : "/catalogo"), 1000)
+      setTimeout(() => {
+        if (rol === "admin")          router.push("/dashboard")
+        else if (rol === "logistica") router.push("/pedidos")
+        else                          router.push("/catalogo")
+      }, 1000)
 
   } catch {
     error.value = "Correo o contraseña incorrectos"
