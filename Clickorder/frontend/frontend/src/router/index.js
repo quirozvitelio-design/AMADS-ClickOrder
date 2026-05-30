@@ -4,6 +4,7 @@ import ProductosView from "../views/ProductosView.vue"
 import PedidosView   from "../views/PedidosView.vue"
 import UsuariosView  from "../views/UsuariosView.vue"
 import CatalogoView  from "../views/CatalogoView.vue"
+import ConfiguracionView from "../views/ConfiguracionView.vue"
 
 const routes = [
     { path: "/",          redirect: "/login" },
@@ -12,6 +13,7 @@ const routes = [
     { path: "/catalogo",  component: CatalogoView,  meta: { requiresAuth: true } },
     { path: "/pedidos", component: PedidosView, meta: { requiresAuth: true, soloDespacho: true } },
     { path: "/usuarios",  component: UsuariosView,  meta: { requiresAuth: true, soloAdmin: true } },
+    { path: "/configuracion", component: ConfiguracionView, meta: { requiresAuth: true, soloAdmin: true } },
 ]
 
 const router = createRouter({ history: createWebHistory(), routes })
