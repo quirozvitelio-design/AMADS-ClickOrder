@@ -92,6 +92,7 @@
           :key="key"
           class="grupo-card">
 
+          <!-- Header de la orden -->
           <div class="grupo-header">
             <div class="grupo-id-wrap">
               <span class="grupo-icono">🛍️</span>
@@ -120,6 +121,7 @@
             </div>
           </div>
 
+          <!-- Items de la orden -->
           <div class="grupo-items">
             <div v-for="pedido in grupo" :key="pedido.id" class="grupo-item">
               <span class="item-emoji">📦</span>
@@ -162,6 +164,7 @@
             </div>
           </div>
 
+          <!-- Footer con factura HU-18 -->
           <div class="grupo-footer">
             <span v-if="grupo[0].metodo_pago" class="grupo-pago">
               💳 {{ grupo[0].metodo_pago }}
@@ -169,6 +172,29 @@
             <span class="grupo-items-count">
               📦 {{ grupo.length }} producto{{ grupo.length > 1 ? 's' : '' }}
             </span>
+
+            <!-- HU-18: Botón factura solo para admin y pedidos Entregados -->
+            <div v-if="esAdmin && grupo[0].estado === 'Entregado'" class="factura-actions">
+              <!-- Si ya tiene factura: mostrar número y botón descargar -->
+              <template v-if="facturasMap[grupo[0].pedido_grupo]">
+                <span class="factura-num">
+                  🧾 {{ facturasMap[grupo[0].pedido_grupo].numero_factura }}
+                </span>
+                <button
+                  class="btn-factura-descargar"
+                  @click="descargarFactura(facturasMap[grupo[0].pedido_grupo].id)">
+                  ⬇ Descargar PDF
+                </button>
+              </template>
+              <!-- Si no tiene factura: botón generar -->
+              <button
+                v-else
+                class="btn-factura-generar"
+                @click="generarFactura(grupo[0].pedido_grupo)"
+                :disabled="generando === grupo[0].pedido_grupo">
+                {{ generando === grupo[0].pedido_grupo ? 'Generando...' : '🧾 Generar Factura' }}
+              </button>
+            </div>
           </div>
 
         </div>
@@ -187,12 +213,13 @@ const usuarios    = ref([])
 const productos   = ref([])
 const mostrarForm = ref(false)
 const form        = ref({ usuario_id: "", producto_id: "", cantidad: 1, metodo_pago: "" })
+const facturasMap = ref({})   // HU-18: mapa pedido_grupo → factura
+const generando   = ref("")   // HU-18: grupo en proceso de generación
 
 const usuario        = JSON.parse(localStorage.getItem("usuario"))
 const esAdmin        = computed(() => usuario?.rol === "admin")
 const puedeDespachar = computed(() => ["admin", "logistica"].includes(usuario?.rol))
 
-// 4 pasos del pedido
 const pasosPedido = [
   "Recibido",
   "Preparando",
@@ -204,7 +231,6 @@ const pasosPedido = [
 const totalIngresos = computed(() =>
   pedidos.value.reduce((sum, p) => sum + Number(p.total), 0).toFixed(2)
 )
-
 const pedidosAgrupados = computed(() => {
   const grupos = {}
   for (const pedido of pedidos.value) {
@@ -259,6 +285,16 @@ async function cargar() {
   productos.value = pr.data
 }
 
+// HU-18: cargar facturas existentes para mostrar en los grupos
+async function cargarFacturas() {
+  try {
+    const res = await api.get("/facturas")
+    const mapa = {}
+    res.data.forEach(f => { mapa[f.pedido_grupo] = f })
+    facturasMap.value = mapa
+  } catch { facturasMap.value = {} }
+}
+
 // ── Acciones ──────────────────────────────────────────────────
 async function guardar() {
   await api.post("/pedidos", form.value)
@@ -269,10 +305,9 @@ async function guardar() {
 
 async function cambiarEstadoGrupo(grupo, nuevoEstado) {
   try {
-    const promesas = grupo.map(p =>
-      api.patch(`/pedidos/${p.id}/estado`, { estado: nuevoEstado })
+    await Promise.all(
+      grupo.map(p => api.patch(`/pedidos/${p.id}/estado`, { estado: nuevoEstado }))
     )
-    await Promise.all(promesas)
     cargar()
   } catch (err) {
     alert(err.response?.data?.mensaje || "Error al cambiar estado")
@@ -287,7 +322,30 @@ async function eliminar(id) {
   }
 }
 
-onMounted(cargar)
+// HU-18: generar factura
+async function generarFactura(pedido_grupo) {
+  generando.value = pedido_grupo
+  try {
+    const res = await api.post(`/facturas/${pedido_grupo}`)
+    alert(`✅ Factura ${res.data.numero_factura} generada correctamente`)
+    await cargarFacturas()
+  } catch (err) {
+    alert(err.response?.data?.mensaje || "Error al generar la factura")
+  } finally {
+    generando.value = ""
+  }
+}
+
+// HU-18: descargar PDF
+function descargarFactura(id) {
+  // Abre el PDF en una nueva pestaña para descarga directa
+  window.open(`${import.meta.env.VITE_API_URL || "http://localhost:3000"}/api/facturas/${id}/pdf`, "_blank")
+}
+
+onMounted(async () => {
+  await cargar()
+  await cargarFacturas()
+})
 </script>
 
 <style scoped>
@@ -365,12 +423,22 @@ onMounted(cargar)
 .paso-3.activo  .paso-label     { color: #1D9E75; font-weight: 700; }
 .grupo-footer { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--row-border); display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
 .grupo-pago        { font-size: 12px; color: var(--text-muted); }
-.grupo-items-count { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+.grupo-items-count { font-size: 11px; color: var(--text-muted); }
+
+/* HU-18: Factura */
+.factura-actions     { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+.factura-num         { font-size: 12px; font-weight: 600; color: #378ADD; }
+.btn-factura-generar { background: linear-gradient(135deg, #378ADD, #1D9E75); border: none; border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: 600; color: #fff; cursor: pointer; font-family: 'Syne', sans-serif; transition: opacity 0.2s; }
+.btn-factura-generar:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-factura-descargar { background: rgba(29,158,117,0.15); border: 1px solid rgba(29,158,117,0.3); border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: 600; color: #1D9E75; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+.btn-factura-descargar:hover { background: rgba(29,158,117,0.25); }
+
 @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @media (max-width: 768px) {
   .grupo-header { flex-direction: column; }
   .grupo-right  { justify-content: space-between; width: 100%; }
   .resumen-row  { gap: 10px; }
   .paso-label   { font-size: 9px; max-width: 60px; }
+  .factura-actions { margin-left: 0; width: 100%; }
 }
 </style>

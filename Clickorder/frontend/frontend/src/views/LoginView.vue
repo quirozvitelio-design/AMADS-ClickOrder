@@ -4,7 +4,6 @@
     <div class="glow-1"></div>
     <div class="glow-2"></div>
 
-    <!-- Botón tema esquina superior derecha -->
     <button @click="toggle" class="btn-tema" :title="isDark ? 'Modo claro' : 'Modo oscuro'">
       <span v-if="isDark">☀️</span>
       <span v-else>🌙</span>
@@ -44,7 +43,15 @@
           <label>Contraseña</label>
           <div class="input-wrap">
             <span class="input-icon">🔑</span>
-            <input v-model="password" type="password" placeholder="••••••••" @keyup.enter="login" />
+            <input
+              v-model="password"
+              :type="verPassword ? 'text' : 'password'"
+              placeholder="••••••••"
+              @keyup.enter="login"
+            />
+            <button class="toggle-pwd" @click="verPassword = !verPassword" type="button">
+              {{ verPassword ? '🙈' : '👁' }}
+            </button>
           </div>
         </div>
 
@@ -54,6 +61,23 @@
         <button class="btn-login" :disabled="cargando" @click="login">
           {{ cargando ? 'Verificando...' : 'Iniciar sesión →' }}
         </button>
+
+        <div class="divider-container">
+          <div class="divider-line"></div>
+          <span class="divider-text">O CONTINUAR CON</span>
+          <div class="divider-line"></div>
+        </div>
+
+        <div class="google-btn-wrapper">
+          <GoogleSignInButton
+            @success="handleGoogleSuccess"
+            @error="handleGoogleError"
+          />
+        </div>
+
+        <p class="enlace-registro">
+          ¿No tienes una cuenta? <router-link to="/registro">Regístrate por correo aquí</router-link>
+        </p>
       </div>
     </div>
   </div>
@@ -64,47 +88,91 @@ import { ref } from "vue"
 import { useRouter } from "vue-router"
 import api from "../api/axios"
 import { useDarkMode } from "../composables/useDarkMode"
+import { GoogleSignInButton } from "vue3-google-signin"
 
-const router   = useRouter()
-const correo   = ref("")
-const password = ref("")
-const error    = ref("")
-const success  = ref("")
-const cargando = ref(false)
+const router      = useRouter()
+const correo      = ref("")
+const password    = ref("")
+const verPassword = ref(false)
+const error       = ref("")
+const success     = ref("")
+const cargando    = ref(false)
 
 const { isDark, toggle } = useDarkMode()
 
+// ── Función compartida de redirección ────────────────────────
+// Misma lógica para login manual y Google:
+//   admin / logística  → /dashboard o /pedidos
+//   cliente sin perfil → /completar-perfil
+//   cliente con perfil → /catalogo
+function redirigirUsuario(usuario) {
+  if (usuario.rol === "admin") {
+    return router.push("/dashboard")
+  }
+  if (usuario.rol === "logistica") {
+    return router.push("/pedidos")
+  }
+  // Cliente: revisar si completó su perfil
+  if (usuario.perfil_completo === 0 || usuario.perfil_completo === false) {
+    return router.push("/completar-perfil")
+  }
+  router.push("/catalogo")
+}
+
+// ── Login tradicional ─────────────────────────────────────────
 async function login() {
   error.value   = ""
   success.value = ""
 
   if (!correo.value || !password.value) {
-    error.value = "Completa todos los campos"
+    error.value = "Completa todos los campos."
     return
   }
 
   cargando.value = true
   try {
-    const res = await api.post("/login", {
-      correo: correo.value,
+    const res     = await api.post("/login", {
+      correo:   correo.value,
       password: password.value
     })
-    localStorage.setItem("usuario", JSON.stringify(res.data.usuario))
-    success.value = `Bienvenido ${res.data.usuario.nombre}!`
+    const usuario = res.data.usuario
 
-    // Redirigir según rol
-    const rol = res.data.usuario.rol
-      setTimeout(() => {
-        if (rol === "admin")          router.push("/dashboard")
-        else if (rol === "logistica") router.push("/pedidos")
-        else                          router.push("/catalogo")
-      }, 1000)
+    localStorage.setItem("usuario", JSON.stringify(usuario))
+    success.value = `¡Bienvenido, ${usuario.nombre.split(' ')[0]}!`
 
-  } catch {
-    error.value = "Correo o contraseña incorrectos"
+    setTimeout(() => redirigirUsuario(usuario), 700)
+
+  } catch (err) {
+    error.value = err.response?.data?.mensaje || "Correo o contraseña incorrectos."
   } finally {
     cargando.value = false
   }
+}
+
+// ── Google Login ──────────────────────────────────────────────
+async function handleGoogleSuccess(response) {
+  error.value   = ""
+  success.value = ""
+  cargando.value = true
+
+  try {
+    const res     = await api.post("/usuarios/google-login", { token: response.credential })
+    const usuario = res.data.usuario
+
+    localStorage.setItem("usuario", JSON.stringify(usuario))
+    success.value = `¡Bienvenido, ${usuario.nombre.split(' ')[0]}!`
+
+    setTimeout(() => redirigirUsuario(usuario), 700)
+
+  } catch (err) {
+    error.value = err.response?.data?.mensaje || "Error al iniciar sesión con Google."
+  } finally {
+    cargando.value = false
+  }
+}
+
+function handleGoogleError() {
+  error.value = "Se canceló la autenticación con Google."
 }
 </script>
 
@@ -120,7 +188,6 @@ async function login() {
   position: relative; overflow: hidden;
 }
 
-/* Botón tema flotante */
 .btn-tema {
   position: absolute; top: 16px; right: 16px; z-index: 10;
   background: var(--bg-card); border: 1px solid var(--border);
@@ -186,40 +253,39 @@ async function login() {
   max-width: 360px; margin-bottom: 48px;
   animation: fadeDown 0.7s ease 0.2s both;
 }
-.stats-row { display: flex; gap: 32px; animation: fadeDown 0.7s ease 0.3s both; }
-.stat-item { display: flex; flex-direction: column; gap: 2px; }
-.stat-num  { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; color: var(--text-primary); }
-.stat-label { font-size: 12px; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; }
 
 .right-panel {
-  width: 440px; display: flex; align-items: center;
-  justify-content: center; padding: 40px; position: relative; z-index: 1;
+  width: 800px; display: flex; align-items: center;
+  justify-content: center; padding: 60px; position: relative; z-index: 1;
 }
 .form-card {
   width: 100%; background: var(--bg-card);
   border: 1px solid var(--border); border-radius: 20px;
-  padding: 40px; backdrop-filter: blur(20px);
+  padding: 40px 60px; backdrop-filter: blur(20px);
   animation: fadeUp 0.7s ease 0.2s both;
 }
-.form-header { margin-bottom: 32px; }
+.form-header { margin-bottom: 24px; }
 .form-header h2 {
   font-family: 'Syne', sans-serif; font-size: 24px;
   font-weight: 700; color: var(--text-primary); margin-bottom: 6px;
 }
 .form-header p { font-size: 13px; color: var(--text-muted); }
 
-.field { margin-bottom: 18px; }
+.field { margin-bottom: 16px; }
 .field label {
   display: block; font-size: 12px; font-weight: 500;
   color: var(--text-muted); letter-spacing: 0.05em;
-  text-transform: uppercase; margin-bottom: 8px;
+  text-transform: uppercase; margin-bottom: 6px;
 }
 .input-wrap { position: relative; display: flex; align-items: center; }
-.input-icon { position: absolute; left: 14px; font-size: 14px; opacity: 0.4; }
+.input-icon {
+  position: absolute; left: 14px; font-size: 14px;
+  opacity: 0.4; pointer-events: none;
+}
 .field input {
   width: 100%; background: var(--input-bg);
   border: 1px solid var(--input-border); border-radius: 10px;
-  padding: 12px 14px 12px 40px; font-size: 14px;
+  padding: 12px 40px; font-size: 14px;
   color: var(--text-primary); font-family: 'DM Sans', sans-serif;
   outline: none; transition: border-color 0.2s, background 0.2s;
 }
@@ -228,6 +294,13 @@ async function login() {
   border-color: rgba(55,138,221,0.5);
   background: rgba(55,138,221,0.07);
 }
+.toggle-pwd {
+  position: absolute; right: 12px;
+  background: transparent; border: none;
+  cursor: pointer; font-size: 14px; opacity: 0.5;
+  padding: 4px; transition: opacity 0.15s;
+}
+.toggle-pwd:hover { opacity: 1; }
 
 .error-msg {
   background: rgba(226,75,74,0.12); border: 1px solid rgba(226,75,74,0.3);
@@ -251,11 +324,30 @@ async function login() {
 .btn-login:active  { transform: scale(0.99); }
 .btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
 
+.divider-container {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; margin: 20px 0;
+}
+.divider-line { flex: 1; height: 1px; background: var(--border); opacity: 0.6; }
+.divider-text { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.05em; }
+.google-btn-wrapper { display: flex; justify-content: center; width: 100%; margin-bottom: 8px; }
+
+.enlace-registro {
+  text-align: center; margin-top: 20px;
+  font-size: 13px; color: var(--text-muted);
+}
+.enlace-registro a {
+  color: #378ADD; text-decoration: none; font-weight: 500;
+  transition: color 0.2s;
+}
+.enlace-registro a:hover { text-decoration: underline; color: #1D9E75; }
+
 @keyframes fadeDown { from{opacity:0;transform:translateY(-16px)} to{opacity:1;transform:none} }
 @keyframes fadeUp   { from{opacity:0;transform:translateY(16px)}  to{opacity:1;transform:none} }
 
 @media (max-width: 700px) {
-  .left-panel { display: none; }
+  .left-panel  { display: none; }
   .right-panel { width: 100%; padding: 24px; }
+  .form-card   { padding: 28px 20px; }
 }
 </style>

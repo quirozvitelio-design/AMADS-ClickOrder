@@ -1,5 +1,5 @@
 const express = require("express")
-const router  = express.Router()
+const router  = require("express").Router()
 const { sql } = require("../config/db")
 
 // ── GET /api/reportes/ingresos ────────────────────────────────
@@ -7,23 +7,23 @@ router.get("/ingresos", async (req, res) => {
   try {
     const pool = await sql.connect()
 
-    // Si no vienen fechas, traer TODO sin filtro
+    // Sin fechas: traer todo
     if (!req.query.desde && !req.query.hasta) {
       const result = await pool.request().query(`
         SELECT
-          CONVERT(VARCHAR(10), p.fecha, 120) AS fecha,
-          SUM(pr.precio * p.cantidad)        AS ingresos,
+          CONVERT(VARCHAR(10), p.fecha, 23) AS fecha,
+          SUM(pr.precio * p.cantidad)       AS ingresos,
           COUNT(DISTINCT ISNULL(p.pedido_grupo, CAST(p.id AS VARCHAR))) AS ordenes
         FROM pedidos p
         INNER JOIN productos pr ON p.producto_id = pr.id
         WHERE p.estado != 'Devuelto'
-        GROUP BY CONVERT(VARCHAR(10), p.fecha, 120)
+        GROUP BY CONVERT(VARCHAR(10), p.fecha, 23)
         ORDER BY fecha ASC
       `)
       return res.json(result.recordset)
     }
 
-    // Con fechas: usar CAST para ignorar la hora en la comparación
+    // Con fechas
     const desde = req.query.desde + " 00:00:00"
     const hasta = req.query.hasta + " 23:59:59"
 
@@ -32,18 +32,19 @@ router.get("/ingresos", async (req, res) => {
       .input("hasta", sql.VarChar, hasta)
       .query(`
         SELECT
-          CONVERT(VARCHAR(10), p.fecha, 120) AS fecha,
-          SUM(pr.precio * p.cantidad)        AS ingresos,
+          CONVERT(VARCHAR(10), p.fecha, 23) AS fecha,
+          SUM(pr.precio * p.cantidad)       AS ingresos,
           COUNT(DISTINCT ISNULL(p.pedido_grupo, CAST(p.id AS VARCHAR))) AS ordenes
         FROM pedidos p
         INNER JOIN productos pr ON p.producto_id = pr.id
-        WHERE CONVERT(VARCHAR(19), p.fecha, 120) >= @desde
-          AND CONVERT(VARCHAR(19), p.fecha, 120) <= @hasta
+        WHERE p.fecha >= CAST(@desde AS DATETIME)
+          AND p.fecha <= CAST(@hasta AS DATETIME)
           AND p.estado != 'Devuelto'
-        GROUP BY CONVERT(VARCHAR(10), p.fecha, 120)
+        GROUP BY CONVERT(VARCHAR(10), p.fecha, 23)
         ORDER BY fecha ASC
       `)
     res.json(result.recordset)
+
   } catch (err) {
     res.status(500).json({ mensaje: "Error al obtener ingresos", error: err.message })
   }
@@ -56,7 +57,7 @@ router.get("/productos-top", async (req, res) => {
   try {
     const pool = await sql.connect()
 
-    // Sin filtro de fechas
+    // Sin fechas: traer todo
     if (!req.query.desde && !req.query.hasta) {
       const result = await pool.request()
         .input("limit", sql.Int, limit)
@@ -75,6 +76,7 @@ router.get("/productos-top", async (req, res) => {
       return res.json(result.recordset)
     }
 
+    // Con fechas
     const desde = req.query.desde + " 00:00:00"
     const hasta = req.query.hasta + " 23:59:59"
 
@@ -90,13 +92,14 @@ router.get("/productos-top", async (req, res) => {
           COUNT(DISTINCT ISNULL(p.pedido_grupo, CAST(p.id AS VARCHAR))) AS ordenes
         FROM pedidos p
         INNER JOIN productos pr ON p.producto_id = pr.id
-        WHERE CONVERT(VARCHAR(19), p.fecha, 120) >= @desde
-          AND CONVERT(VARCHAR(19), p.fecha, 120) <= @hasta
+        WHERE p.fecha >= CAST(@desde AS DATETIME)
+          AND p.fecha <= CAST(@hasta AS DATETIME)
           AND p.estado != 'Devuelto'
         GROUP BY pr.id, pr.nombre
         ORDER BY total_vendido DESC
       `)
     res.json(result.recordset)
+
   } catch (err) {
     res.status(500).json({ mensaje: "Error al obtener productos top", error: err.message })
   }
@@ -106,10 +109,9 @@ router.get("/productos-top", async (req, res) => {
 router.get("/resumen", async (req, res) => {
   try {
     const pool = await sql.connect()
-
     let queryOrdenes, queryIngresos
 
-    // Sin filtro de fechas
+    // Sin fechas: traer todo
     if (!req.query.desde && !req.query.hasta) {
       queryOrdenes = await pool.request().query(`
         SELECT COUNT(DISTINCT ISNULL(pedido_grupo, CAST(id AS VARCHAR))) AS total_ordenes
@@ -117,12 +119,13 @@ router.get("/resumen", async (req, res) => {
         WHERE estado != 'Devuelto'
       `)
       queryIngresos = await pool.request().query(`
-        SELECT SUM(pr.precio * p.cantidad) AS total_ingresos
+        SELECT ISNULL(SUM(pr.precio * p.cantidad), 0) AS total_ingresos
         FROM pedidos p
         INNER JOIN productos pr ON p.producto_id = pr.id
         WHERE p.estado != 'Devuelto'
       `)
     } else {
+      // Con fechas
       const desde = req.query.desde + " 00:00:00"
       const hasta = req.query.hasta + " 23:59:59"
 
@@ -132,25 +135,25 @@ router.get("/resumen", async (req, res) => {
         .query(`
           SELECT COUNT(DISTINCT ISNULL(pedido_grupo, CAST(id AS VARCHAR))) AS total_ordenes
           FROM pedidos
-          WHERE CONVERT(VARCHAR(19), fecha, 120) >= @desde
-            AND CONVERT(VARCHAR(19), fecha, 120) <= @hasta
+          WHERE fecha >= CAST(@desde AS DATETIME)
+            AND fecha <= CAST(@hasta AS DATETIME)
             AND estado != 'Devuelto'
         `)
       queryIngresos = await pool.request()
         .input("desde", sql.VarChar, desde)
         .input("hasta", sql.VarChar, hasta)
         .query(`
-          SELECT SUM(pr.precio * p.cantidad) AS total_ingresos
+          SELECT ISNULL(SUM(pr.precio * p.cantidad), 0) AS total_ingresos
           FROM pedidos p
           INNER JOIN productos pr ON p.producto_id = pr.id
-          WHERE CONVERT(VARCHAR(19), p.fecha, 120) >= @desde
-            AND CONVERT(VARCHAR(19), p.fecha, 120) <= @hasta
+          WHERE p.fecha >= CAST(@desde AS DATETIME)
+            AND p.fecha <= CAST(@hasta AS DATETIME)
             AND p.estado != 'Devuelto'
         `)
     }
 
-    const totalOrdenes  = queryOrdenes.recordset[0].total_ordenes || 0
-    const totalIngresos = parseFloat(queryIngresos.recordset[0].total_ingresos) || 0
+    const totalOrdenes   = queryOrdenes.recordset[0].total_ordenes || 0
+    const totalIngresos  = parseFloat(queryIngresos.recordset[0].total_ingresos) || 0
     const ticketPromedio = totalOrdenes > 0
       ? (totalIngresos / totalOrdenes).toFixed(2)
       : "0.00"
@@ -160,8 +163,35 @@ router.get("/resumen", async (req, res) => {
       total_ingresos:  totalIngresos.toFixed(2),
       ticket_promedio: ticketPromedio
     })
+
   } catch (err) {
     res.status(500).json({ mensaje: "Error al obtener resumen", error: err.message })
+  }
+})
+
+// ── Mantener compatibilidad con endpoint anterior ─────────────
+router.get("/dashboard-resumen", async (req, res) => {
+  try {
+    const pool = await sql.connect()
+    const queryOrdenes = await pool.request().query(`
+      SELECT COUNT(DISTINCT ISNULL(pedido_grupo, CAST(id AS VARCHAR))) AS total_ordenes
+      FROM pedidos WHERE estado != 'Devuelto'
+    `)
+    const queryIngresos = await pool.request().query(`
+      SELECT ISNULL(SUM(pr.precio * p.cantidad), 0) AS total_ingresos
+      FROM pedidos p
+      INNER JOIN productos pr ON p.producto_id = pr.id
+      WHERE p.estado != 'Devuelto'
+    `)
+    const totalOrdenes  = queryOrdenes.recordset[0].total_ordenes || 0
+    const totalIngresos = parseFloat(queryIngresos.recordset[0].total_ingresos) || 0
+    res.json({
+      totalOrdenes,
+      totalIngresos,
+      ticketPromedio: totalOrdenes > 0 ? totalIngresos / totalOrdenes : 0
+    })
+  } catch (err) {
+    res.status(500).json({ mensaje: "Error", error: err.message })
   }
 })
 
