@@ -1,157 +1,108 @@
 <template>
   <div class="page-root">
+    <!-- Cuadrícula de fondo decorativa -->
     <div class="bg-grid"></div>
-    <div class="page-content">
 
+    <div class="page-content">
+      <!-- ENCABEZADO DE LA PÁGINA -->
       <div class="page-header">
         <div>
-          <h1 class="page-title">Usuarios & Roles</h1>
-          <p class="page-sub">Administra los accesos al sistema</p>
+          <h1 class="page-title">Usuarios</h1>
+          <p class="page-sub">Administra las cuentas, roles y accesos del personal</p>
         </div>
       </div>
 
-      <div class="tabs">
-        <button :class="['tab-btn', tab === 'usuarios' ? 'active' : '']" @click="tab = 'usuarios'">
-          Usuarios
-        </button>
-        <button :class="['tab-btn', tab === 'roles' ? 'active' : '']" @click="tab = 'roles'">
-          Roles
-        </button>
-      </div>
+      <!-- SECCIÓN PRINCIPAL DE GESTIÓN -->
+      <div class="dashboard-grid">
+        
+        <!-- Tabla de Usuarios Registrados -->
+        <div class="dashboard-card col-span-2">
+          <h2 class="card-title">Cuentas del Sistema</h2>
+          
+          <div class="table-responsive">
+            <table class="usuarios-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nombre completo</th>
+                  <th>Correo Electrónico</th>
+                  <th>Rol / Permisos</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="u in usuarios" :key="u.id">
+                  <td class="id-cell">#{{ u.id }}</td>
+                  <td class="font-semibold text-primary">👤 {{ u.nombre }}</td>
+                  <td class="text-secondary">{{ u.correo }}</td>
+                  <td>
+                    <span :class="['role-badge', 'role-' + u.rol.toLowerCase()]">
+                      {{ u.rol }}
+                    </span>
+                  </td>
+                  <td class="right-col actions-cell">
+  <button
+    @click="seleccionarUsuario(u)"
+    class="btn-edit-role"
+    title="Cambiar Rol"
+  >
+    🔑 Editar Rol
+  </button>
 
-      <!-- ===== USUARIOS ===== -->
-      <div v-if="tab === 'usuarios'">
-        <div class="section-header">
-          <span class="section-count">{{ usuarios.length }} usuarios</span>
-          <button @click="abrirFormUsuario()" class="btn-primary">+ Nuevo usuario</button>
+  <button
+    @click="eliminarUsuario(u)"
+    class="btn-delete-user"
+    title="Eliminar Usuario"
+  >
+    🗑 Eliminar
+  </button>
+</td>
+                </tr>
+                <tr v-if="usuarios.length === 0">
+                  <td colspan="5" class="empty-state">
+                    <p>No se encontraron usuarios registrados en la base de datos.</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        <div v-if="formUsuario.visible" class="form-card">
-          <h2 class="form-title">{{ formUsuario.editando ? 'Editar usuario' : 'Nuevo usuario' }}</h2>
-          <div class="form-grid">
-            <div class="field">
-              <label>Nombre *</label>
-              <input v-model="formUsuario.nombre" type="text" placeholder="Nombre completo" />
+        <!-- Panel Lateral de Edición de Rol (Solo si hay uno seleccionado) -->
+        <div class="dashboard-card">
+          <h2 class="card-title">Modificar Permisos</h2>
+          
+          <div v-if="usuarioSeleccionado" class="edit-role-panel animate-fade">
+            <div class="user-preview-box">
+              <span class="avatar-large">👤</span>
+              <p class="preview-name">{{ usuarioSeleccionado.nombre }}</p>
+              <p class="preview-email">{{ usuarioSeleccionado.correo }}</p>
             </div>
+
             <div class="field">
-              <label>Correo *</label>
-              <input v-model="formUsuario.correo" type="email" placeholder="correo@mail.com" />
-            </div>
-            <div class="field">
-              <label>{{ formUsuario.editando ? 'Nueva contraseña (opcional)' : 'Contraseña *' }}</label>
-              <input v-model="formUsuario.password" type="password" :placeholder="formUsuario.editando ? 'Dejar vacío para no cambiar' : '••••••••'" />
-            </div>
-            <div class="field">
-              <label>Rol *</label>
-              <select v-model="formUsuario.rol_id">
-                <option disabled value="">Selecciona rol</option>
-                <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.nombre }}</option>
+              <label>Asignar Nuevo Rol *</label>
+              <select v-model="nuevoRol">
+                <option value="admin">Administrador (Acceso Total)</option>
+                <option value="logistica">Logística (Gestión de Pedidos)</option>
+                <option value="cliente">Cliente (Consultas Básicas)</option>
               </select>
+              <p class="field-hint">El cambio de rol alterará los módulos y vistas a los que este usuario tiene acceso de forma inmediata.</p>
+            </div>
+
+            <div class="panel-actions">
+              <button @click="usuarioSeleccionado = null" class="btn-cancel">Cancelar</button>
+              <button @click="actualizarRol" :disabled="guardando" class="btn-submit-role">
+                {{ guardando ? 'Guardando...' : 'Guardar Cambios' }}
+              </button>
             </div>
           </div>
-          <p v-if="errorUsuario" class="error-msg">{{ errorUsuario }}</p>
-          <div class="form-actions">
-            <button @click="guardarUsuario" class="btn-primary">
-              {{ formUsuario.editando ? 'Actualizar' : 'Crear usuario' }}
-            </button>
-            <button @click="cancelarUsuario" class="btn-cancel">Cancelar</button>
+
+          <div v-else class="empty-side-panel">
+            <span>🔑</span>
+            <p>Selecciona un usuario de la lista para gestionar sus niveles de acceso y roles operativos.</p>
           </div>
         </div>
 
-        <div class="table-card">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>Correo</th>
-                <th>Rol</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="usuarios.length === 0">
-                <td colspan="5" class="empty">No hay usuarios registrados</td>
-              </tr>
-              <tr v-for="u in usuarios" :key="u.id">
-                <td class="id-col">#{{ u.id }}</td>
-                <td>{{ u.nombre }}</td>
-                <td class="muted">{{ u.correo }}</td>
-                <td>
-                  <span :class="['rol-badge', u.rol === 'admin' ? 'admin' : 'cliente']">
-                    {{ u.rol }}
-                  </span>
-                </td>
-                <td>
-                  <div class="actions">
-                    <button @click="abrirFormUsuario(u)" class="btn-edit">Editar</button>
-                    <button @click="eliminarUsuario(u.id)" class="btn-delete">Eliminar</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- ===== ROLES ===== -->
-      <div v-if="tab === 'roles'">
-        <div class="section-header">
-          <span class="section-count">{{ roles.length }} roles</span>
-          <button @click="abrirFormRol()" class="btn-primary">+ Nuevo rol</button>
-        </div>
-
-        <div v-if="formRol.visible" class="form-card">
-          <h2 class="form-title">{{ formRol.editando ? 'Editar rol' : 'Nuevo rol' }}</h2>
-          <div class="form-grid">
-            <div class="field">
-              <label>Nombre del rol *</label>
-              <input v-model="formRol.nombre" type="text" placeholder="Ej: supervisor" />
-            </div>
-          </div>
-          <p v-if="errorRol" class="error-msg">{{ errorRol }}</p>
-          <div class="form-actions">
-            <button @click="guardarRol" class="btn-primary">
-              {{ formRol.editando ? 'Actualizar' : 'Crear rol' }}
-            </button>
-            <button @click="formRol.visible = false" class="btn-cancel">Cancelar</button>
-          </div>
-        </div>
-
-        <div class="table-card">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>Usuarios asignados</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="roles.length === 0">
-                <td colspan="4" class="empty">No hay roles registrados</td>
-              </tr>
-              <tr v-for="r in roles" :key="r.id">
-                <td class="id-col">#{{ r.id }}</td>
-                <td>
-                  <span :class="['rol-badge', r.nombre === 'admin' ? 'admin' : 'cliente']">
-                    {{ r.nombre }}
-                  </span>
-                </td>
-                <td class="muted">
-                  {{ usuarios.filter(u => u.rol_id === r.id).length }} usuarios
-                </td>
-                <td>
-                  <div class="actions">
-                    <button @click="abrirFormRol(r)" class="btn-edit">Editar</button>
-                    <button @click="eliminarRol(r.id)" class="btn-delete">Eliminar</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
       </div>
 
     </div>
@@ -160,172 +111,204 @@
 
 <script setup>
 import { ref, onMounted } from "vue"
-import api from "../api/axios"
+import clickOrderApi from "../api/axios"
 
-const tab          = ref("usuarios")
-const usuarios     = ref([])
-const roles        = ref([])
-const errorUsuario = ref("")
-const errorRol     = ref("")
+const usuarios = ref([])
+const usuarioSeleccionado = ref(null)
+const nuevoRol = ref("")
+const guardando = ref(false)
 
-const formUsuario = ref({
-  visible: false, editando: null,
-  nombre: "", correo: "", password: "", rol_id: ""
-})
-const formRol = ref({
-  visible: false, editando: null, nombre: ""
+onMounted(() => {
+  cargarUsuarios()
 })
 
-async function cargar() {
-  const [u, r] = await Promise.all([api.get("/usuarios"), api.get("/roles")])
-  usuarios.value = u.data
-  roles.value    = r.data
-}
-
-// --- USUARIOS ---
-function abrirFormUsuario(u = null) {
-  errorUsuario.value = ""
-  formUsuario.value = u
-    ? { visible: true, editando: u.id, nombre: u.nombre, correo: u.correo, password: "", rol_id: u.rol_id }
-    : { visible: true, editando: null, nombre: "", correo: "", password: "", rol_id: "" }
-}
-
-function cancelarUsuario() {
-  formUsuario.value.visible = false
-  errorUsuario.value = ""
-}
-
-async function guardarUsuario() {
-  errorUsuario.value = ""
-  const { editando, nombre, correo, password, rol_id } = formUsuario.value
-
-  if (!nombre || !correo || !rol_id) {
-    errorUsuario.value = "Nombre, correo y rol son obligatorios"
-    return
+async function cargarUsuarios() {
+  try {
+    const res = await clickOrderApi.get("/usuarios")
+    usuarios.value = res.data
+  } catch (err) {
+    console.error("Error al cargar usuarios:", err)
   }
-  if (!editando && !password) {
-    errorUsuario.value = "La contraseña es obligatoria al crear un usuario"
-    return
-  }
+}
+
+function seleccionarUsuario(u) {
+  usuarioSeleccionado.value = u
+  nuevoRol.value = u.role || u.rol || "cliente"
+}
+
+async function actualizarRol() {
+  if (!usuarioSeleccionado.value) return
 
   try {
-    if (editando) {
-      await api.put(`/usuarios/${editando}`, { nombre, correo, password, rol_id })
-    } else {
-      await api.post("/usuarios", { nombre, correo, password, rol_id })
-    }
-    formUsuario.value.visible = false
-    cargar()
-  } catch (e) {
-    errorUsuario.value = e.response?.data?.mensaje || "Error al guardar el usuario"
+    guardando.value = true
+    // Hacemos el envío de actualización del rol al endpoint correspondiente
+    await clickOrderApi.put(`/usuarios/${usuarioSeleccionado.value.id}/rol`, { 
+      rol: nuevoRol.value 
+    })
+    
+    alert(`¡Rol de ${usuarioSeleccionado.value.nombre} actualizado correctamente!`)
+    usuarioSeleccionado.value = null
+    cargarUsuarios()
+  } catch (err) {
+    console.error("Error al actualizar el rol:", err)
+    alert("Hubo un error al intentar cambiar el rol del usuario.")
+  } finally {
+    guardando.value = false
   }
 }
+async function eliminarUsuario(usuario) {
+  const confirmar = confirm(
+    `¿Deseas eliminar al usuario "${usuario.nombre}"?\n\nEsta acción no se puede deshacer.`
+  )
 
-async function eliminarUsuario(id) {
-  if (confirm("¿Eliminar este usuario?")) {
-    await api.delete(`/usuarios/${id}`)
-    cargar()
-  }
-}
-
-// --- ROLES ---
-function abrirFormRol(r = null) {
-  errorRol.value = ""
-  formRol.value = r
-    ? { visible: true, editando: r.id, nombre: r.nombre }
-    : { visible: true, editando: null, nombre: "" }
-}
-
-async function guardarRol() {
-  errorRol.value = ""
-  const { editando, nombre } = formRol.value
-
-  if (!nombre) {
-    errorRol.value = "El nombre del rol es obligatorio"
-    return
-  }
+  if (!confirmar) return
 
   try {
-    if (editando) {
-      await api.put(`/roles/${editando}`, { nombre })
-    } else {
-      await api.post("/roles", { nombre })
+    await clickOrderApi.delete(`/usuarios/${usuario.id}`)
+
+    alert("Usuario eliminado correctamente")
+
+    if (
+      usuarioSeleccionado.value &&
+      usuarioSeleccionado.value.id === usuario.id
+    ) {
+      usuarioSeleccionado.value = null
     }
-    formRol.value.visible = false
-    cargar()
-  } catch (e) {
-    errorRol.value = e.response?.data?.mensaje || "Error al guardar el rol"
+
+    cargarUsuarios()
+  } catch (err) {
+    console.error("Error al eliminar usuario:", err)
+    alert("No se pudo eliminar el usuario")
   }
 }
-
-async function eliminarRol(id) {
-  if (confirm("¿Eliminar este rol? Los usuarios asignados perderán su rol.")) {
-    await api.delete(`/roles/${id}`)
-    cargar()
-  }
-}
-
-onMounted(cargar)
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+/* REJILLA INTEGRADA */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+@media (max-width: 992px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
 
-.page-root { min-height: 100vh; background: var(--bg-base); font-family: 'DM Sans', sans-serif; position: relative; }
-.bg-grid { position: fixed; inset: 0; pointer-events: none; background-image: linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px); background-size: 48px 48px; mask-image: radial-gradient(ellipse 80% 80% at 50% 20%, black 40%, transparent 100%); }
-.page-content { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 40px 24px; }
-.page-header { margin-bottom: 24px; }
-.page-title { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; color: var(--text-primary); margin-bottom: 4px; }
-.page-sub { font-size: 14px; color: var(--text-muted); }
+.dashboard-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  padding: 24px;
+}
+.col-span-2 { grid-column: span 1; }
+@style-fix { .col-span-2 { grid-column: span 2; } }
+@media (max-width: 992px) { .col-span-2 { grid-column: span 1; } }
 
-.tabs { display: flex; background: var(--bg-card); border: 1px solid var(--border-soft); border-radius: 12px; padding: 4px; margin-bottom: 24px; width: fit-content; }
-.tab-btn { padding: 8px 24px; background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-muted); border-radius: 9px; transition: all 0.2s; font-family: 'DM Sans', sans-serif; }
-.tab-btn.active { background: rgba(55,138,221,0.2); color: #378ADD; }
+.card-title {
+  font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700;
+  color: var(--text-primary); margin-bottom: 20px; text-transform: uppercase;
+}
 
-.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.section-count { font-size: 13px; color: var(--text-muted); }
+/* ESTRUCTURA DE LA TABLA */
+.table-responsive { overflow-x: auto; }
+.usuarios-table { width: 100%; border-collapse: collapse; text-align: left; }
+.usuarios-table th {
+  padding: 12px 14px; font-size: 11px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; border-bottom: 1px solid var(--border-soft);
+}
+.usuarios-table td { padding: 14px 14px; font-size: 13px; border-bottom: 1px solid var(--border-soft); }
 
-.form-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; animation: fadeUp 0.3s ease both; }
-.form-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 16px; }
-.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
-.form-actions { display: flex; gap: 10px; }
+.id-cell { font-family: monospace; color: var(--text-muted); }
+.font-semibold { font-weight: 600; }
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.right-col { text-align: right; }
 
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field label { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
-.field input, .field select { background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 10px 14px; font-size: 14px; color: var(--text-primary); font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s, background 0.2s; }
-.field input::placeholder { color: var(--text-muted); }
-.field input:focus, .field select:focus { border-color: rgba(55,138,221,0.5); background: rgba(55,138,221,0.07); }
-.field select option { background: var(--bg-base); color: var(--text-primary); }
+/* BADGES DE ROLES */
+.role-badge {
+  font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 6px;
+  text-transform: uppercase; display: inline-block;
+}
+.role-admin { background: rgba(226,75,74,0.12); color: #E24B4A; border: 1px solid rgba(226,75,74,0.2); }
+.role-logistica { background: rgba(124,58,237,0.12); color: #7C3AED; border: 1px solid rgba(124,58,237,0.2); }
+.role-cliente { background: rgba(55,138,221,0.12); color: #378ADD; border: 1px solid rgba(55,138,221,0.2); }
 
-.error-msg { color: #E24B4A; font-size: 13px; margin-bottom: 12px; background: rgba(226,75,74,0.08); border: 1px solid rgba(226,75,74,0.2); border-radius: 8px; padding: 8px 12px; }
+.btn-edit-role {
+  background: var(--bg-base); border: 1px solid var(--border);
+  color: var(--text-secondary); border-radius: 6px; padding: 6px 12px;
+  font-size: 12px; cursor: pointer; font-weight: 500; transition: all 0.15s;
+}
+.btn-edit-role:hover { background: var(--bg-card-hover); color: var(--text-primary); border-color: var(--text-muted); }
 
-.btn-primary { background: linear-gradient(135deg, #378ADD, #1D9E75); border: none; border-radius: 10px; padding: 10px 20px; font-size: 13px; font-weight: 600; color: #fff; cursor: pointer; font-family: 'Syne', sans-serif; transition: opacity 0.2s, transform 0.1s; }
-.btn-primary:hover { opacity: 0.9; }
-.btn-primary:active { transform: scale(0.98); }
+/* PANEL DE ACCESO/EDICIÓN LATERAL */
+.user-preview-box {
+  background: var(--bg-base); border: 1px solid var(--border-soft);
+  border-radius: 12px; padding: 16px; text-align: center; margin-bottom: 20px;
+}
+.avatar-large { font-size: 32px; display: block; margin-bottom: 8px; }
+.preview-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.preview-email { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
-.btn-cancel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 20px; font-size: 13px; color: var(--text-secondary); cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
-.btn-cancel:hover { color: var(--text-primary); background: var(--bg-card-hover); }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+.field label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.field select {
+  background: var(--bg-base); border: 1px solid var(--border);
+  color: var(--text-primary); padding: 10px 14px; border-radius: 8px;
+  font-size: 13px; outline: none; font-family: 'DM Sans', sans-serif;
+}
+.field select:focus { border-color: #378ADD; }
+.field-hint { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
 
-.table-card { background: var(--bg-card); border: 1px solid var(--border-soft); border-radius: 16px; overflow: hidden; }
-table { width: 100%; border-collapse: collapse; }
-thead tr { background: var(--thead-bg); }
-th { padding: 14px 18px; text-align: left; font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
-tbody tr { border-top: 1px solid var(--row-border); transition: background 0.15s; }
-tbody tr:hover { background: var(--row-hover); }
-td { padding: 14px 18px; font-size: 14px; color: var(--text-secondary); }
-.id-col { color: var(--text-muted); font-size: 12px; font-family: monospace; }
-.muted { color: var(--text-muted); }
-.empty { text-align: center; color: var(--text-muted); padding: 40px !important; }
+.panel-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.btn-cancel {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); padding: 10px 16px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.btn-submit-role {
+  background: var(--text-primary); color: var(--bg-base); border: none;
+  padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.btn-submit-role:disabled { opacity: 0.5; }
 
-.rol-badge { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em; }
-.rol-badge.admin   { background: rgba(55,138,221,0.15); color: #378ADD; border: 1px solid rgba(55,138,221,0.3); }
-.rol-badge.cliente { background: rgba(29,158,117,0.15); color: #1D9E75; border: 1px solid rgba(29,158,117,0.3); }
+/* PANEL VACÍO */
+.empty-side-panel {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 40px 16px; text-align: center; color: var(--text-muted); gap: 10px;
+  border: 1px dashed var(--border); border-radius: 12px; min-height: 250px;
+}
+.empty-side-panel span { font-size: 28px; }
+.empty-side-panel p { font-size: 12px; line-height: 1.5; }
 
-.actions { display: flex; gap: 8px; }
-.btn-edit { background: rgba(55,138,221,0.15); border: 1px solid rgba(55,138,221,0.3); border-radius: 6px; padding: 5px 12px; font-size: 12px; color: #378ADD; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
-.btn-edit:hover { background: rgba(55,138,221,0.25); }
-.btn-delete { background: rgba(226,75,74,0.12); border: 1px solid rgba(226,75,74,0.25); border-radius: 6px; padding: 5px 12px; font-size: 12px; color: #E24B4A; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
-.btn-delete:hover { background: rgba(226,75,74,0.22); }
+.empty-state { text-align: center; color: var(--text-muted); padding: 32px !important; font-size: 13px; }
 
-@keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+.animate-fade { animation: fadeUp 0.15s ease-out; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.actions-cell {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.btn-delete-user {
+  background: rgba(226, 75, 74, 0.12);
+  border: 1px solid rgba(226, 75, 74, 0.25);
+  color: #E24B4A;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.btn-delete-user:hover {
+  background: rgba(226, 75, 74, 0.22);
+}
+
+.btn-delete-user:active {
+  transform: scale(0.98);
+}
 </style>

@@ -1,107 +1,152 @@
 <template>
-  <div>
-    <nav v-if="usuario" class="navbar">
-      <div class="nav-brand">
-        <div class="nav-icon">C</div>
-        <span>ClickOrder</span>
-      </div>
-      <div class="nav-links">
-        <router-link v-if="usuario.rol === 'admin'" to="/dashboard" class="nav-link">Dashboard</router-link>
-        <router-link v-if="usuario.rol === 'admin'" to="/productos" class="nav-link">Productos</router-link>
-        <router-link v-if="usuario.rol === 'cliente'" to="/catalogo" class="nav-link">Catálogo</router-link>
-        <router-link v-if="usuario.rol === 'admin' || usuario.rol === 'logistica'" to="/pedidos"   class="nav-link">Pedidos</router-link>
-        <router-link v-if="usuario.rol === 'admin'" to="/usuarios"  class="nav-link">Usuarios</router-link>
-        <router-link v-if="usuario.rol === 'admin'" to="/configuracion" class="nav-link">Config</router-link>
-        <router-link v-if="usuario.rol === 'admin'" to="/reportes" class="nav-link">Reportes</router-link>
+  <div :class="['app-container', claseLayout]">
 
-        <div class="nav-divider"></div>
-        <span class="nav-user">{{ usuario.nombre }} · {{ usuario.rol }}</span>
+    <!-- Sidebar SOLO para admin y logística — clientes tienen su propio layout -->
+    <Sidebar v-if="mostrarSidebarAdmin" />
 
-        <!-- Toggle modo claro/oscuro -->
-        <button @click="toggle" class="btn-tema" :title="isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'">
-          <span v-if="isDark">☀️</span>
-          <span v-else>🌙</span>
-        </button>
+    <main class="main-content">
+      <router-view />
+    </main>
 
-        <button @click="cerrarSesion" class="btn-salir">Salir</button>
-      </div>
-    </nav>
-    <router-view />
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from "vue"
-import { useRouter, useRoute } from "vue-router"
-import { useDarkMode } from "./composables/useDarkMode"
+import { ref, watch, computed } from "vue"
+import { useRoute } from "vue-router"
+import Sidebar from "./components/Sidebar.vue"
 
-const router  = useRouter()
-const route   = useRoute()
+const route  = useRoute()
 const usuario = ref(null)
-const { isDark, toggle } = useDarkMode()
 
 watch(() => route.path, () => {
-  usuario.value = JSON.parse(localStorage.getItem("usuario"))
+  usuario.value = JSON.parse(localStorage.getItem("usuario") || "null")
 }, { immediate: true })
 
-function cerrarSesion() {
-  localStorage.removeItem("usuario")
-  usuario.value = null
-  router.push("/login")
-}
+// Solo admin y logística usan el sidebar global
+const mostrarSidebarAdmin = computed(() => {
+  const rol = usuario.value?.rol
+  return rol === "admin" || rol === "logistica"
+})
+
+// Tres estados de layout:
+// - "auth-layout"    → no está logueado (login, registro)
+// - "with-sidebar"   → admin / logística (sidebar fijo a la izquierda)
+// - "cliente-layout" → cliente (sin padding, el catálogo maneja su propio layout)
+const claseLayout = computed(() => {
+  if (!usuario.value) return "auth-layout"
+  if (mostrarSidebarAdmin.value) return "with-sidebar"
+  return "cliente-layout"
+})
 </script>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-body { background: var(--bg-base); }
+html { font-size: 115%; }
 
-.navbar {
-  position: sticky; top: 0; z-index: 100;
-  background: var(--nav-bg);
-  border-bottom: 1px solid var(--nav-border);
-  backdrop-filter: blur(16px);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 32px; height: 56px;
-}
-.nav-brand {
-  display: flex; align-items: center; gap: 10px;
-  font-family: 'Syne', sans-serif; font-weight: 700;
-  font-size: 16px; color: var(--text-primary);
-}
-.nav-icon {
-  width: 28px; height: 28px;
-  background: linear-gradient(135deg, #378ADD, #1D9E75);
-  border-radius: 8px; display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 800; color: #fff;
-}
-.nav-links { display: flex; align-items: center; gap: 8px; }
-.nav-link {
-  font-size: 13px; color: var(--text-secondary); text-decoration: none;
-  padding: 6px 12px; border-radius: 8px; transition: all 0.15s;
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
   font-family: 'DM Sans', sans-serif;
+  overflow-x: hidden;
+  font-size: 1rem;
 }
-.nav-link:hover           { color: var(--text-primary); background: var(--bg-card-hover); }
-.nav-link.router-link-active { color: #378ADD; background: rgba(55,138,221,0.12); }
-.nav-divider { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
-.nav-user {
-  font-size: 12px; color: var(--text-muted);
-  font-family: 'DM Sans', sans-serif; padding: 0 8px;
-}
-.btn-tema {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: 8px; width: 34px; height: 34px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; font-size: 16px; transition: all 0.15s;
-}
-.btn-tema:hover { background: var(--bg-card-hover); }
 
-.btn-salir {
-  background: rgba(226,75,74,0.12); border: 1px solid rgba(226,75,74,0.25);
-  border-radius: 8px; padding: 5px 14px; font-size: 12px; color: #E24B4A;
-  cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s;
+/* ── CONTENEDOR MAESTRO ── */
+.app-container {
+  display: flex;
+  min-height: 100vh;
+  width: 100vw;
 }
-.btn-salir:hover { background: rgba(226,75,74,0.22); }
+
+/* Admin / logística — sidebar fijo a la izquierda */
+.app-container.with-sidebar {
+  padding-left: 260px;
+  transition: padding-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.app-container.with-sidebar:has(.sidebar.collapsed) {
+  padding-left: 70px;
+}
+
+/* Cliente — sin padding, el catálogo ocupa todo el ancho */
+.app-container.cliente-layout {
+  padding-left: 0;
+}
+
+/* Sin sesión — login / registro */
+.app-container.auth-layout {
+  padding-left: 0;
+}
+
+.main-content {
+  flex: 1;
+  width: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── ESTILOS GLOBALES COMPARTIDOS ── */
+.page-root {
+  position: relative;
+  min-height: 100vh;
+  padding: 40px 32px;
+  background: var(--bg-base);
+  z-index: 1;
+}
+
+.page-content {
+  position: relative;
+  max-width: 1550px;
+  margin: 0 auto;
+  width: 100%;
+  z-index: 2;
+}
+
+.bg-grid {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 450px;
+  background-image:
+    linear-gradient(var(--border-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-soft) 1px, transparent 1px);
+  background-size: 44px 44px;
+  opacity: 0.25;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 60%, rgba(0,0,0,0));
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 60%, rgba(0,0,0,0));
+  pointer-events: none;
+  z-index: 1;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+}
+
+.page-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+
+.page-sub {
+  font-size: 19px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+@media (max-width: 768px) {
+  html { font-size: 105%; }
+  .app-container.with-sidebar        { padding-left: 0; }
+  .app-container.with-sidebar:has(.sidebar.collapsed) { padding-left: 0; }
+  .page-root { padding: 24px 16px; }
+}
 </style>
